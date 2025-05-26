@@ -1,5 +1,4 @@
 import React from "react";
-import Wrapper from "@/components/Wrapper";
 import CollapsibleBox from "@/components/Profile/CollapsibleBox";
 
 type Field = { label: string; answer: string };

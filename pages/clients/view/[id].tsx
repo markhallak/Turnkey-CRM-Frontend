@@ -1,6 +1,5 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import Wrapper from "@/components/Wrapper";
 import { clientsData } from "@/lib/constants";
 import { Check, ChevronsUpDown } from "lucide-react";
@@ -10,42 +9,10 @@ import CurrencyFormat from "react-currency-format";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
-import {
-  CommandEmpty,
-  CommandGroup,
-  CommandItem,
-  CommandList,
-  Command,
-} from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  projectDocumentData as PD,
-  projectQuoteData as PQ,
-  projectsData,
-} from "@/lib/constants";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectTrigger,
@@ -53,20 +20,11 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import { GoKebabHorizontal } from "react-icons/go";
 import InvoiceTab from "@/components/Clients/Tabs/Invoices";
 import PaperworkTab from "@/components/Clients/Tabs/PaperWork";
 import ProjectsTab from "@/components/Clients/Tabs/Projects";
 
-const clientStatuses = [
-  { value: "compliantAndActive", label: "Compliant and Active" },
-  { value: "compliantAndNonActive", label: "Compliant and Non-active" },
-];
-
 const ClientDetails = () => {
-  const [projectDocumentData, setProjectDocumentData] = useState(PD);
-  const [projectQuoteData, setProjectQuoteData] = useState(PQ);
-
   const router = useRouter();
   const { id } = router.query;
 
@@ -78,7 +36,6 @@ const ClientDetails = () => {
     totalRevenue: number;
   } | null>(null);
 
-  const [statusOpen, setStatusOpen] = useState(false);
   const [inputValue, setInputValue] = useState("1600 Amphitheatre Parkway");
   const [confirmedValue, setConfirmedValue] = useState(
     "1600 Amphitheatre Parkway"

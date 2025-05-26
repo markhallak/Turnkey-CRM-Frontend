@@ -1,4 +1,4 @@
-import React, { useState, useRef, useLayoutEffect, useEffect } from "react";
+import React from "react";
 import Wrapper from "@/components/Wrapper";
 import CompanyProfileTab from "@/components/Profile/Tabs/CompanyProfile";
 import DocumentsTab from "@/components/Profile/Tabs/Documents";

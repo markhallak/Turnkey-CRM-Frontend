@@ -3,6 +3,9 @@ import { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  images: {
+    domains: ["images.squarespace-cdn.com"], // Add your allowed image domain here
+  },
   webpack(config) {
     config.resolve.alias = {
       ...(config.resolve.alias || {}),

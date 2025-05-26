@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
 import Wrapper from "@/components/Wrapper";
 import {
   Select,
@@ -33,8 +33,6 @@ const newId = (() => {
 function DatePicker({
   date,
   setDate,
-  layout,
-  flag2,
 }: {
   date: Date | undefined;
   setDate: (d: Date | undefined) => void;
@@ -226,8 +224,6 @@ export default function Quote() {
                 <DatePicker
                   date={issueDate}
                   setDate={setIssueDate}
-                  layout={layout}
-                  flag2={flag2}
                 />
               </div>
               <div

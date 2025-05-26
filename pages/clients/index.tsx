@@ -33,7 +33,6 @@ const Clients = () => {
     type: ["residential", "commercial"],
     status: ["Compliant and Active", "Compliant and Non-active"],
   });
-  const tableRef = useRef<{ table: any } | null>(null);
   const [tableInstance, setTableInstance] = useState<any>(null);
   const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
 

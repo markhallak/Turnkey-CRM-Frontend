@@ -142,7 +142,7 @@ const NewClient = () => {
                                         className="mt-1.5"
                                         {...field}
                                         onChange={(e) => {
-                                            let val = e.target.value.replace(/[^+\d]/g, "");
+                                            const val = e.target.value.replace(/[^+\d]/g, "");
                                             const match = val.match(/^(\+\d{1,3})(\d*)$/);
                                             field.onChange(match ? `${match[1]} ${match[2]}` : val);
                                         }}
@@ -164,7 +164,7 @@ const NewClient = () => {
                                         className="mt-1.5"
                                         {...field}
                                         onChange={(e) => {
-                                            let val = e.target.value.replace(/[^+\d]/g, "");
+                                            const val = e.target.value.replace(/[^+\d]/g, "");
                                             const match = val.match(/^(\+\d{1,3})(\d*)$/);
                                             field.onChange(match ? `${match[1]} ${match[2]}` : val);
                                         }}

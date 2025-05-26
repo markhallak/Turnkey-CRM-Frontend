@@ -36,7 +36,6 @@ import {
   Edit2,
   Trash2,
   Plus,
-  X,
 } from "lucide-react";
 import {
   Select,

@@ -32,7 +32,6 @@ const Billing = () => {
   const [filters, setFilters] = useState<{ type: string[]; status: string[] }>({
     status: ["Draft", "Collected"],
   });
-  const tableRef = useRef<{ table: any } | null>(null);
   const [tableInstance, setTableInstance] = useState<any>(null);
   const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
 

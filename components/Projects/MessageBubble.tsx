@@ -9,6 +9,7 @@ import {
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import { Ellipsis, CheckCheck, FileText, Download } from "lucide-react";
+import Image from "next/image";
 
 type Attachment = {
   name: string;
@@ -70,8 +71,6 @@ export default function MessageBubble({
     if (text) await navigator.clipboard.writeText(text);
   };
 
-
-
   return (
     <div
       className={`relative group flex w-full my-2 ${
@@ -102,10 +101,15 @@ export default function MessageBubble({
               key={i}
               className="flex bg-white border border-gray-200 rounded-lg p-3"
             >
-
               <div className="flex-shrink-0 flex self-center items-center justify-center w-10 h-10 bg-gray-100 rounded">
                 {iconSrc ? (
-                  <img src={iconSrc} alt={ext} className="w-8 h-8" />
+                  <Image
+                    src={iconSrc}
+                    alt={ext}
+                    width={32}
+                    height={32}
+                    className="w-8 h-8"
+                  />
                 ) : (
                   <FileText size={24} className="text-gray-500" />
                 )}

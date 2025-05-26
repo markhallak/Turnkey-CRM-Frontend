@@ -9,7 +9,7 @@ import {
   CircleHelp,
 } from "lucide-react";
 import Link from "next/link";
-
+import Image from "next/image";
 import {
   Sidebar,
   SidebarContent,
@@ -59,7 +59,7 @@ export default function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader className="flex flex-row items-center px-4 py-[1.21rem] space-x-2">
-        <img
+        <Image
           src="https://images.squarespace-cdn.com/content/v1/65dccd9507a4f103fe5b6f9d/ebb6c888-e03f-4f33-b659-d7bb41697d70/favicon.ico?format=100w"
           alt="Site Favicon"
           width={25}

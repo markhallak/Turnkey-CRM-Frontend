@@ -7,6 +7,7 @@ import * as React from "react";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/router";
+import Image from 'next/image';
 
 export default function LoginForm({
   className,
@@ -14,7 +15,6 @@ export default function LoginForm({
 }: React.ComponentProps<"div">) {
   const [email, setEmail] = React.useState("");
   const [loading, setLoading] = React.useState(false);
-  const [firstTime, setFirstTime] = React.useState(true);
   const [error, setError] = React.useState("");
   const { toast } = useToast();
   const router = useRouter();
@@ -84,10 +84,12 @@ export default function LoginForm({
             </div>
           </form>
           <div className="relative hidden bg-muted md:block">
-            <img
+            <Image
               src="/login-bg.jpg"
-              alt="Image"
-              className="absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
+              alt="Login Background"
+              fill
+              className="object-cover brightness-100 dark:brightness-50 dark:grayscale"
+              priority
             />
           </div>
         </CardContent>
