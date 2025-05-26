@@ -60,28 +60,28 @@ function ClientReferencesSection() {
               <TableRow key={idx}>
                 <TableCell>
                   <Input
-                    className="focus-visible:ring-blue-800"
+                    className="focus-visible:ring-blue-600"
                     value={ref.company}
                     onChange={updateField(idx, "company")}
                   />
                 </TableCell>
                 <TableCell>
                   <Input
-                    className="focus-visible:ring-blue-800"
+                    className="focus-visible:ring-blue-600"
                     value={ref.contact}
                     onChange={updateField(idx, "contact")}
                   />
                 </TableCell>
                 <TableCell>
                   <Input
-                    className="focus-visible:ring-blue-800"
+                    className="focus-visible:ring-blue-600"
                     value={ref.email}
                     onChange={updateField(idx, "email")}
                   />
                 </TableCell>
                 <TableCell>
                   <Input
-                    className="focus-visible:ring-blue-800"
+                    className="focus-visible:ring-blue-600"
                     value={ref.phone}
                     onChange={updateField(idx, "phone")}
                   />
@@ -152,7 +152,7 @@ function PricingStructureSection() {
               <TableCell>
                 {row.isCustom ? (
                   <Input
-                    className="focus-visible:ring-blue-800"
+                    className="focus-visible:ring-blue-600"
                     value={row.label}
                     onChange={(e) => {
                       const value = e.target.value;
@@ -169,7 +169,7 @@ function PricingStructureSection() {
               </TableCell>
               <TableCell className="text-center">
                 <Input
-                  className="focus-visible:ring-blue-800"
+                  className="focus-visible:ring-blue-600"
                   value={row.regular}
                   onChange={(e) => {
                     const value = e.target.value;
@@ -183,7 +183,7 @@ function PricingStructureSection() {
               </TableCell>
               <TableCell className="text-center">
                 <Input
-                  className="focus-visible:ring-blue-800"
+                  className="focus-visible:ring-blue-600"
                   value={row.after}
                   onChange={(e) => {
                     const value = e.target.value;
@@ -208,45 +208,45 @@ function GeneralInfoSection() {
     <div className="space-y-6">
       <div className="space-y-2">
         <Label htmlFor="companyName">Company Name (as shown in W9)</Label>
-        <Input id="companyName" className="focus-visible:ring-blue-800" />
+        <Input id="companyName" className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="streetAddress">Address</Label>
-        <Input id="streetAddress" className="focus-visible:ring-blue-800" />
+        <Input id="streetAddress" className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="satelliteOffice">
           Satellite Office Address (if applicable)
         </Label>
-        <Input id="satelliteOffice" className="focus-visible:ring-blue-800" />
+        <Input id="satelliteOffice" className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="organizationType">Organization Type</Label>
-        <Input id="organizationType" className="focus-visible:ring-blue-800" />
+        <Input id="organizationType" className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="establishmentYear">Year of Establishment</Label>
-        <Input id="establishmentYear" className="focus-visible:ring-blue-800" />
+        <Input id="establishmentYear" className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="annualRevenue">Annual Revenue (2023)</Label>
-        <Input id="annualRevenue" className="focus-visible:ring-blue-800" />
+        <Input id="annualRevenue" className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="paymentMethods">Accepted Payment Methods</Label>
-        <Input id="paymentMethods" className="focus-visible:ring-blue-800" />
+        <Input id="paymentMethods" className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="naicsCode">
           NAICS (North American Industry Classification Systems)
         </Label>
-        <Input id="naicsCode" className="focus-visible:ring-blue-800" />
+        <Input id="naicsCode" className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="dunsNumber">
           DUNS (Data Universal Numbering System)
         </Label>
-        <Input id="dunsNumber" className="focus-visible:ring-blue-800" />
+        <Input id="dunsNumber" className="focus-visible:ring-blue-600" />
       </div>
     </div>
   );
@@ -257,33 +257,33 @@ function ServiceInfoSection() {
     <div className="space-y-6">
       <div className="space-y-2">
         <Label htmlFor="coverageArea">Coverage Area (Cities)</Label>
-        <Input id="coverageArea" className="focus-visible:ring-blue-800" />
+        <Input id="coverageArea" className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="adminStaffCount">Number of Admin Staff</Label>
-        <Input id="adminStaffCount" className="focus-visible:ring-blue-800" />
+        <Input id="adminStaffCount" className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="fieldStaffCount">Number of Field Staff</Label>
-        <Input id="fieldStaffCount" className="focus-visible:ring-blue-800" />
+        <Input id="fieldStaffCount" className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="licenses">License(s)</Label>
-        <Input id="licenses" className="focus-visible:ring-blue-800" />
+        <Input id="licenses" className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="workingHours">Working Hours</Label>
-        <Input id="workingHours" className="focus-visible:ring-blue-800" />
+        <Input id="workingHours" className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="coversAfterHours">Do you cover afterhours?</Label>
-        <Input id="coversAfterHours" className="focus-visible:ring-blue-800" />
+        <Input id="coversAfterHours" className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="coversWeekendCalls">Do you cover weekend calls?</Label>
         <Input
           id="coversWeekendCalls"
-          className="focus-visible:ring-blue-800"
+          className="focus-visible:ring-blue-600"
         />
       </div>
     </div>
@@ -299,7 +299,7 @@ function ContactInfoSection() {
         </Label>
         <Input
           id="dispatchSupervisor"
-          className="focus-visible:ring-blue-800"
+          className="focus-visible:ring-blue-600"
         />
       </div>
       <div className="space-y-2">
@@ -307,7 +307,7 @@ function ContactInfoSection() {
           Field Supervisor (In Charge of technical aspects, onground services
           and service techs)
         </Label>
-        <Input id="fieldSupervisor" className="focus-visible:ring-blue-800" />
+        <Input id="fieldSupervisor" className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="managementSupervisor">
@@ -316,20 +316,20 @@ function ContactInfoSection() {
         </Label>
         <Input
           id="managementSupervisor"
-          className="focus-visible:ring-blue-800"
+          className="focus-visible:ring-blue-600"
         />
       </div>
       <div className="space-y-2">
         <Label htmlFor="regularContact">
           Regular Hours (Email & Phone Number)
         </Label>
-        <Input id="regularContact" className="focus-visible:ring-blue-800" />
+        <Input id="regularContact" className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="emergencyContact">
           Emergency Hours (Email & Phone Number)
         </Label>
-        <Input id="emergencyContact" className="focus-visible:ring-blue-800" />
+        <Input id="emergencyContact" className="focus-visible:ring-blue-600" />
       </div>
     </div>
   );
@@ -344,7 +344,7 @@ function LoadInfoSection() {
         </Label>
         <Input
           id="averageMonthlyTickets"
-          className="focus-visible:ring-blue-800"
+          className="focus-visible:ring-blue-600"
         />
       </div>
       <div className="space-y-2">
@@ -352,14 +352,14 @@ function LoadInfoSection() {
           Percentage Split of PO Source (ex: 30% Residential, 50% Commercial,
           20% Industrial)
         </Label>
-        <Input id="poSourceSplit" className="focus-visible:ring-blue-800" />
+        <Input id="poSourceSplit" className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="monthlyPOCapacity">
           Current Monthly PO Capacity (Maximum capacity # of POs with current
           staff and capabilities)
         </Label>
-        <Input id="monthlyPOCapacity" className="focus-visible:ring-blue-800" />
+        <Input id="monthlyPOCapacity" className="focus-visible:ring-blue-600" />
       </div>
     </div>
   );
@@ -545,7 +545,8 @@ export default function OnboardingPage() {
         <Progress
           value={progress}
           className="
-    h-1 w-full
+    h-[0.3rem] w-full
+    rounded-none rounded-tr-full rounded-br-full
     [&>div]:transition-all
     [&>div]:duration-300
     [&>div]:ease-in-out
@@ -553,6 +554,7 @@ export default function OnboardingPage() {
     [&>div]:from-blue-900
     [&>div]:via-blue-700
     [&>div]:to-blue-600
+    [&>div]:rounded-r-full
   "
         />
       </header>
