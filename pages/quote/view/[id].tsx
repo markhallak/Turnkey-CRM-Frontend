@@ -2,7 +2,7 @@
 
 import Wrapper from "@/components/Wrapper";
 
-export default function MyApp() {
+export default function ViewQuote() {
   return (
     <Wrapper title="PDF Viewer">
       <iframe

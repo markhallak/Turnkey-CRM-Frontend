@@ -2,7 +2,7 @@
 
 import Wrapper from "@/components/Wrapper";
 
-export default function MyApp() {
+export default function ViewInvoice() {
   return (
     <Wrapper title="Invoice Viewer">
       <iframe
