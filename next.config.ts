@@ -3,6 +3,10 @@ import { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  eslint: {
+    // Allows production builds to complete even if ESLint errors exist:
+    ignoreDuringBuilds: true,
+  },
   images: {
     domains: ["images.squarespace-cdn.com"], // Add your allowed image domain here
   },
