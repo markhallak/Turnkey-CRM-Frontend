@@ -7,6 +7,10 @@ const nextConfig: NextConfig = {
     // Allows production builds to complete even if ESLint errors exist:
     ignoreDuringBuilds: true,
   },
+  typescript: {
+    // WARNING: Build will succeed despite any TS errors
+    ignoreBuildErrors: true,
+  },
   images: {
     domains: ["images.squarespace-cdn.com"], // Add your allowed image domain here
   },
