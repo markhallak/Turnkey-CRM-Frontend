@@ -1,1 +1,0 @@
-{/* Check for user sign in, cookies and all that here */}
