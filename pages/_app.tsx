@@ -3,13 +3,23 @@ import AppSidebar from "@/components/Sidebar";
 import "@/styles/globals.css";
 import type { AppProps } from "next/app";
 import { useRouter } from "next/router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import "@/styles/input-border-animation.css";
 import { Toaster } from "@/components/ui/toaster";
 import { ToastProvider } from "@/components/ui/toast";
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();
+  const [sidebarDefaultOpen, setSidebarDefaultOpen] = useState(true);
+
+  useEffect(() => {
+    const match = document.cookie
+      .split("; ")
+      .find((row) => row.startsWith("sidebar_state="));
+    if (match) {
+      setSidebarDefaultOpen(match.split("=")[1] === "true");
+    }
+  }, []);
 
   useEffect(() => {
     const originalPush = router.push.bind(router);
@@ -44,7 +54,7 @@ export default function App({ Component, pageProps }: AppProps) {
         </>
       ) : (
         <SidebarProvider
-          defaultOpen={true}
+          defaultOpen={sidebarDefaultOpen}
           style={{
             "--sidebar-width": "15rem",
             "--sidebar-width-mobile": "15rem",
