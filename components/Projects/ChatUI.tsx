@@ -14,7 +14,7 @@ type Attachment = {
 
 type Message = {
   text: string;
-  sender: "user" | "client" | "bot";
+  sender: "employee" | "client";
   timestamp: string;
   date: Date;
   attachments?: Attachment[];
@@ -23,121 +23,121 @@ type Message = {
 const initialMessages: Message[] = [
   {
     text: "Hi there! What can I assist you with today?",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:00 AM",
     date: new Date(2025, 4, 15),
   },
   {
     text: "Need any help finding something?",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:00 AM",
     date: new Date(2025, 4, 15),
   },
   {
     text: "Good morning! How may I be of service?",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:00 AM",
     date: new Date(2025, 4, 15),
   },
   {
     text: "Hey! Got a question for me?",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:00 AM",
     date: new Date(2025, 4, 15),
   },
   {
     text: "Welcome! What do you need help with?",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:00 AM",
     date: new Date(2025, 4, 15),
   },
   {
     text: "What can I do for you today?",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:00 AM",
     date: new Date(2025, 4, 15),
   },
   {
     text: "Hello! Do you need assistance with anything?",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:00 AM",
     date: new Date(2025, 4, 15),
   },
   {
     text: "How can I support you today?",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:00 AM",
     date: new Date(2025, 4, 15),
   },
   {
     text: "Hello! Looking for something in particular?",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:00 AM",
     date: new Date(2025, 4, 15),
   },
   {
     text: "Hi! Feel free to ask me anything.",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:00 AM",
     date: new Date(2025, 4, 15),
   },
   {
     text: "Hey there! How can I help out?",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:00 AM",
     date: new Date(2025, 4, 15),
   },
   {
     text: "Hello! Need guidance or support?",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:00 AM",
     date: new Date(2025, 4, 15),
   },
   {
     text: "Good to see you! What are you looking for?",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:00 AM",
     date: new Date(2025, 4, 15),
   },
   {
     text: "Hey! Can I answer a question for you?",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:00 AM",
     date: new Date(2025, 4, 15),
   },
   {
     text: "Hello! Want to explore some options?",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:00 AM",
     date: new Date(2025, 4, 15),
   },
   {
     text: "Hi again! What would you like to know?",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:00 AM",
     date: new Date(2025, 4, 15),
   },
   {
     text: "Welcome back! Ready to get started?",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:00 AM",
     date: new Date(2025, 4, 15),
   },
   {
     text: "Hello! Let me know how I can help.",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:00 AM",
     date: new Date(2025, 4, 15),
   },
   {
     text: "Hey! Got something on your mind?",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:00 AM",
     date: new Date(2025, 4, 15),
   },
   {
     text: "Hi! I'm here if you need anything.",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:00 AM",
     date: new Date(2025, 4, 15),
   },
@@ -163,7 +163,7 @@ const initialMessages: Message[] = [
   },
   {
     text: "Sure, I'll take a look.",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:06 AM",
     date: new Date(2025, 4, 15),
   },
@@ -175,7 +175,7 @@ const initialMessages: Message[] = [
   },
   {
     text: "Let me know if you have questions.",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:08 AM",
     date: new Date(2025, 4, 16),
   },
@@ -187,31 +187,31 @@ const initialMessages: Message[] = [
   },
   {
     text: "Great!",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:10 AM",
     date: new Date(2025, 4, 17),
   },
   {
     text: "We can handle everything from A to Z!",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:11 AM",
     date: new Date(2025, 4, 17),
   },
   {
     text: "You don't have to worry about anything at all",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:12 AM",
     date: new Date(2025, 4, 17),
   },
   {
     text: "Feel free to ask.",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:13 AM",
     date: new Date(2025, 4, 17),
   },
   {
     text: "One more doc for you.",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:14 AM",
     date: new Date(2025, 4, 17),
     attachments: [
@@ -226,7 +226,7 @@ const initialMessages: Message[] = [
   },
   {
     text: "You're welcome.",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:16 AM",
     date: new Date(2025, 4, 17),
   },
@@ -238,7 +238,7 @@ const initialMessages: Message[] = [
   },
   {
     text: "On it.",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:18 AM",
     date: new Date(2025, 4, 17),
   },
@@ -268,7 +268,7 @@ const initialMessages: Message[] = [
   },
   {
     text: "Let me refer you to the refund team and they'll be able to assist you with that!",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:21 AM",
     date: new Date(2025, 4, 17),
   },
@@ -280,7 +280,7 @@ const initialMessages: Message[] = [
   },
   {
     text: "Great chat!",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:22 AM",
     date: new Date(2025, 4, 17),
   },
@@ -292,7 +292,7 @@ const initialMessages: Message[] = [
   },
   {
     text: "Bye!",
-    sender: "user",
+    sender: "employee",
     timestamp: "10:24 AM",
     date: new Date(2025, 4, 17),
   },
@@ -303,11 +303,18 @@ export default function ChatUI({ clientname }: { clientname: string }) {
   const [visibleCount, setVisibleCount] = useState(20);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [messageType, setMessageType] = useState<"employee" | "all">(
+    "employee"
+  );
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const visibleMessages = allMessages.slice(-visibleCount);
+  const filteredMessages =
+    messageType === "employee"
+      ? allMessages.filter((m) => m.sender === "employee")
+      : allMessages;
+  const visibleMessages = filteredMessages.slice(-visibleCount);
 
   const formatSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
@@ -328,7 +335,7 @@ export default function ChatUI({ clientname }: { clientname: string }) {
     const url = URL.createObjectURL(file);
     const msg: Message = {
       text: "",
-      sender: "user",
+      sender: "employee",
       timestamp: ts,
       date: now,
       attachments: [{ name, extension, size, url }],
@@ -348,7 +355,7 @@ export default function ChatUI({ clientname }: { clientname: string }) {
       "[data-scroll-area-viewport],[data-radix-scroll-area-viewport]"
     );
     vp?.scrollTo({ top: vp.scrollHeight, behavior: "smooth" });
-  }, [allMessages.length]);
+  }, [filteredMessages.length]);
 
   useEffect(() => {
     const vp = scrollAreaRef.current?.querySelector<HTMLElement>(
@@ -360,13 +367,13 @@ export default function ChatUI({ clientname }: { clientname: string }) {
     const onScroll = () => {
       if (
         vp.scrollTop <= 0 &&
-        visibleCount < allMessages.length &&
+        visibleCount < filteredMessages.length &&
         !isLoading
       ) {
         prevScrollHeight = vp.scrollHeight;
         setIsLoading(true);
         setTimeout(() => {
-          setVisibleCount((c) => Math.min(allMessages.length, c + 20));
+          setVisibleCount((c) => Math.min(filteredMessages.length, c + 20));
           setIsLoading(false);
           requestAnimationFrame(() => {
             const newHeight = vp.scrollHeight;
@@ -377,7 +384,7 @@ export default function ChatUI({ clientname }: { clientname: string }) {
     };
     vp.addEventListener("scroll", onScroll);
     return () => vp.removeEventListener("scroll", onScroll);
-  }, [visibleCount, allMessages.length, isLoading]);
+  }, [visibleCount, filteredMessages.length, isLoading, messageType]);
 
   const handleSend = () => {
     if (!input.trim()) return;
@@ -389,7 +396,7 @@ export default function ChatUI({ clientname }: { clientname: string }) {
     });
     const userMsg: Message = {
       text: input,
-      sender: "user",
+      sender: "employee",
       timestamp: ts,
       date: now,
     };
@@ -443,13 +450,13 @@ export default function ChatUI({ clientname }: { clientname: string }) {
     }
     const next = visibleMessages[i + 1];
     const isLastOfMine =
-      m.sender === "user" && (!next || next.sender !== "user");
-    const isFirstOfOthers = m.sender !== "user" && lastSender !== m.sender;
-    const isFirstOfMine = m.sender === "user" && lastSender !== "user";
+      m.sender === "employee" && (!next || next.sender !== "employee");
+    const isFirstOfOthers = m.sender !== "employee" && lastSender !== m.sender;
+    const isFirstOfMine = m.sender === "employee" && lastSender !== "employee";
     groups.push({
       ...m,
-      __showTime: m.sender === "user" ? isLastOfMine : isFirstOfOthers,
-      __showName: m.sender === "user" ? isFirstOfMine : isFirstOfOthers,
+      __showTime: m.sender === "employee" ? isLastOfMine : isFirstOfOthers,
+      __showName: m.sender === "employee" ? isFirstOfMine : isFirstOfOthers,
     } as any);
     lastSender = m.sender;
   }
@@ -483,8 +490,8 @@ export default function ChatUI({ clientname }: { clientname: string }) {
                 key={i}
                 text={item.text}
                 date={item.date}
-                mine={item.sender === "user"}
-                senderName={item.sender === "user" ? "You" : clientname}
+                mine={item.sender === "employee"}
+                senderName={item.sender === "employee" ? "You" : clientname}
                 timestamp={item.timestamp}
                 attachments={item.attachments}
                 showTime={item.__showTime}
@@ -523,7 +530,14 @@ export default function ChatUI({ clientname }: { clientname: string }) {
             >
               <Paperclip size={20} className="text-gray-500" />
             </Button>
-            <Button variant="ghost" size="icon" type="button">
+            <Button
+              variant="ghost"
+              size="icon"
+              type="button"
+              onClick={() =>
+                setMessageType((t) => (t === "employee" ? "all" : "employee"))
+              }
+            >
               <User size={20} className="text-gray-500" />
             </Button>
             <Button
