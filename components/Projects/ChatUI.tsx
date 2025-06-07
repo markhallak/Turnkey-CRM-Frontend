@@ -1,7 +1,7 @@
 // ChatUI.tsx
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Paperclip, Send } from "lucide-react";
+import { Paperclip, Send, User } from "lucide-react";
 import MessageBubble from "@/components/Projects/MessageBubble";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -522,6 +522,9 @@ export default function ChatUI({ clientname }: { clientname: string }) {
               onClick={() => fileInputRef.current?.click()}
             >
               <Paperclip size={20} className="text-gray-500" />
+            </Button>
+            <Button variant="ghost" size="icon" type="button">
+              <User size={20} className="text-gray-500" />
             </Button>
             <Button
               variant="ghost"

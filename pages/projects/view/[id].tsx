@@ -551,18 +551,7 @@ const ProjectView = () => {
           </div>
           <div className="w-full lg:w-[40%] lg:border-l border-t lg:border-t-0 flex-none h-full overflow-auto">
             <div className="flex flex-col h-full min-h-0 overflow-hidden">
-              <div className="sticky top-0 z-10 bg-gray-100 border-t border-b p-3">
-                <Select value={messageType} onValueChange={setMessageType}>
-                  <SelectTrigger className="w-full bg-white focus:ring-0">
-                    <SelectValue placeholder="All Messages" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Messages</SelectItem>
-                    <SelectItem value="internal">Internal</SelectItem>
-                    <SelectItem value="client">Client</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            
               <ChatUI clientname={project?.client || ""} />
             </div>
           </div>
