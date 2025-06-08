@@ -253,18 +253,19 @@ const Header: FC<IProps> = ({ title }) => {
               "
               >
                 <div className="flex flex-col space-y-4 flex-1 min-h-0">
-                  <div className="input-underline !mx-4 flex items-center">
+                  <div className="input-underline !mx-4 mt-4 flex items-center">
                     <Search
-                      size={20}
+                      size={18}
                       color="#a6a6a6"
-                      strokeWidth={1.25}
+                      strokeWidth={1}
                       absoluteStrokeWidth
+                      className="mr-1"
                     />
                     <input
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       placeholder="Search projects and clients..."
-                      className="inner-input ml-2 flex-1"
+                      className="inner-input ml-2 pb-[0.15rem] flex-1 font-normal text-gray-700"
                       autoFocus
                     />
                   </div>

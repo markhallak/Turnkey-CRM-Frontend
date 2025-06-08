@@ -54,7 +54,6 @@ const CalendarComponent = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isOpen, setDropDownIsOpen] = useState(false);
   const { open: sidebarOpen } = useSidebar();
-  // State for popover
   const [hoveredEvent, setHoveredEvent] = useState<EventImpl | null>(null);
   const [hoveredEl, setHoveredEl] = useState<HTMLElement | null>(null);
   const [fixedCoords, setFixedCoords] = useState<{
@@ -82,10 +81,7 @@ const CalendarComponent = () => {
     }
   };
 
-  const formattedTitle = new Intl.DateTimeFormat("en-US", {
-    year: "numeric",
-    month: "long",
-  }).format(currentDate);
+  const formattedTitle = new Intl.DateTimeFormat('en-US', { month: 'long' }).format(currentDate) + ', ' + new Intl.DateTimeFormat('en-US', { year: 'numeric' }).format(currentDate);
 
   useEffect(() => {
     if (!hoveredEl) return;

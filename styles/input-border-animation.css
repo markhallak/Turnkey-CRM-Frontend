@@ -1,7 +1,6 @@
 .input-underline {
   position: relative;
   padding-bottom: 2px;
-  border-bottom: 1px solid grey;
 }
 .input-underline::after {
   content: "";
@@ -20,7 +19,5 @@
 }
 .inner-input {
   width: 100%;
-  border: grey;
   outline: none;
-  padding: 0.5rem 0;
 }
