@@ -54,14 +54,14 @@ export default function LoginForm({
       <Card className="overflow-hidden">
         <CardContent className="grid p-0 md:grid-cols-2">
           <form onSubmit={handleLogin} className="p-6 md:p-8">
-            <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-6 min-h-64">
               <div className="flex flex-col items-center text-center">
                 <h1 className="text-2xl font-bold">Welcome back</h1>
                 <p className="text-balance text-muted-foreground">
                   Login to your TurnKey account
                 </p>
               </div>
-              <div className="grid gap-2">
+              <div className="grid gap-2 mt-3 sm:mt-5">
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
