@@ -31,6 +31,13 @@ export default function Dashboard() {
     <Wrapper title="dashboard">
     <div className="px-6 sm:px-0 md: px-0 lg:px-0">
       <div className="flex flex-col lg:flex-row py-8 gap-10">
+      <style jsx global>{`
+        .title {
+          font-family: "Times New Roman", serif;
+          text-transform: capitalize;
+          color: #0b1f3a;
+        }
+      `}</style>
         <div className="flex-1 min-w-0">
           <CalendarComponent />
         </div>
@@ -39,7 +46,7 @@ export default function Dashboard() {
         </div>
       </div>
       <div className="flex flex-col py-4 pb-20">
-        <span className="text-2xl font-semibold">Latest Updates</span>
+        <span className="text-2xl title">Latest Updates</span>
 
         <ul className="mt-5 space-y-1">
           {notifications.map((notification, index) => (

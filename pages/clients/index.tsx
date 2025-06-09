@@ -134,10 +134,10 @@ const Clients = () => {
             <Button
               asChild
               variant="outline"
-              className="px-6 flex items-center py-3 w-max text-sm font-medium text-white rounded-md bg-sky-600 hover:bg-white"
+              className="w-auto min-w-[6rem] flex items-center justify-center text-sm font-medium text-white rounded-md bg-blue-600 hover:bg-white"
             >
               <Link href="/clients/new">
-                <span className="!text-base">Create</span>
+                <span className="!text-sm">Create</span>
                 <Plus
                   strokeWidth={1.75}
                   className="!w-[1.15rem] !h-[1.15rem]"

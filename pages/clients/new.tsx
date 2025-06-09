@@ -246,7 +246,7 @@ const NewClient = () => {
                         >
                             <Link href="/clients">Cancel</Link>
                         </Button>
-                        <Button type="submit" variant="outline" className="px-4 flex items-center py-3 h-9 md:py-1 w-full md:w-36 text-sm font-medium text-white rounded-md bg-sky-600 hover:bg-white">
+                        <Button type="submit" variant="outline" className="px-4 flex items-center py-3 h-9 md:py-1 w-full md:w-36 text-sm font-medium text-white rounded-md bg-blue-600 hover:bg-white">
                             Create Client
                         </Button>
                     </div>

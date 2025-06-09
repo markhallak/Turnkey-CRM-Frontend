@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 const Performance = () => {
   return (
     <div className="flex flex-col w-full">
-      <span className="text-2xl font-medium">Performance Overview</span>
+      <span className="text-2xl title">Performance Overview</span>
 
       <Card
         className="
@@ -13,7 +13,7 @@ const Performance = () => {
     backdrop-blur-md
     border border-white/30
     rounded-lg shadow-lg
-    flex flex-col mt-11 h-28
+    flex flex-col mt-7 h-28
       "
       >
         <CardHeader className="pb-0 mb-4">

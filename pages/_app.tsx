@@ -24,20 +24,30 @@ export default function App({ Component, pageProps }: AppProps) {
   useEffect(() => {
     const originalPush = router.push.bind(router);
     router.push = (url, as, options) => {
-      if (router.pathname === "/login" || router.pathname === "/onboarding") {
+      if (
+        router.pathname === "/login" ||
+        router.pathname === "/onboarding" ||
+        router.pathname === "/projects/new" ||
+        router.pathname === "/clients/new" ||
+        router.pathname === "/billing/new"
+      ) {
         return originalPush(url, as, options);
       }
+
       const path = typeof url === "string" ? url : url.pathname;
       if (path === "/login") {
         return originalPush(url, as, options);
       }
+
       window.open(
         typeof url === "string" ? url : url.pathname + url.search,
         "_blank",
         "noopener,noreferrer"
       );
+
       return Promise.resolve(true);
     };
+
     return () => {
       router.push = originalPush;
     };

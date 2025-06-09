@@ -202,6 +202,11 @@ const Header: FC<IProps> = ({ title }) => {
       prev.map((n) => ({ ...n, unread: anyUnread ? false : true }))
     );
   };
+
+  useEffect(() => {
+    import("@/components/ui/dialog");
+  }, []);
+
   return (
     <header>
       <nav className="bg-white border-b border-gray-200 px-5 sm:!pr-16">
@@ -218,7 +223,9 @@ const Header: FC<IProps> = ({ title }) => {
                           {crumb.text}
                         </BreadcrumbLink>
                       ) : (
-                        <BreadcrumbPage className="text-base">{crumb.text}</BreadcrumbPage>
+                        <BreadcrumbPage className="text-base">
+                          {crumb.text}
+                        </BreadcrumbPage>
                       )}
                     </BreadcrumbItem>
                     {i < crumbs.length - 1 && (
@@ -240,8 +247,11 @@ const Header: FC<IProps> = ({ title }) => {
                 />
               </DialogTrigger>
               <DialogContent
+                forceMount
                 className="
               mx-auto
+              will-change-[opacity,transform]
+              transition-all duration-200 ease-in-out
      max-w-[calc(100%-2rem)]
      md:max-w-xl
      lg:max-w-2xl
@@ -281,7 +291,7 @@ const Header: FC<IProps> = ({ title }) => {
                           <div
                             key={idx}
                             onClick={() => setSearchTerm(item)}
-                            className="p-2 hover:bg-gray-100 rounded flex items-center justify-between transition-colors duration-100 ease-in-out"
+                            className="p-2 cursor-pointer hover:bg-gray-100 rounded flex items-center justify-between transition-colors duration-100 ease-in-out"
                           >
                             <span>{item}</span>
                             <History

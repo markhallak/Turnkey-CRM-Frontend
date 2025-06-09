@@ -81,7 +81,10 @@ const CalendarComponent = () => {
     }
   };
 
-  const formattedTitle = new Intl.DateTimeFormat('en-US', { month: 'long' }).format(currentDate) + ', ' + new Intl.DateTimeFormat('en-US', { year: 'numeric' }).format(currentDate);
+  const formattedTitle =
+    new Intl.DateTimeFormat("en-US", { month: "long" }).format(currentDate) +
+    ", " +
+    new Intl.DateTimeFormat("en-US", { year: "numeric" }).format(currentDate);
 
   useEffect(() => {
     if (!hoveredEl) return;
@@ -113,11 +116,10 @@ const CalendarComponent = () => {
 
   return (
     <div className="w-full ml-0 pl-0 sm:ml-0 sm:pl-0 lg:pl-0 lg:ml-0">
-      <div className="flex flex-col lg:flex-row justify-between lg:items-center mb-4">
-        <h2 className="text-xl font-semibold">{formattedTitle}</h2>
+      <div className="flex flex-col lg:flex-row justify-between lg:items-center">
+        <h2 className="text-xl title">{formattedTitle}</h2>
 
         <div className="mt-5 lg:mt-0 flex justify-between">
-          {/* View By Dropdown using @szhsin/react-menu */}
           <DropdownMenu open={isOpen} onOpenChange={setDropDownIsOpen}>
             <DropdownMenuTrigger
               className="flex items-start justify-center"
@@ -161,7 +163,6 @@ const CalendarComponent = () => {
         </div>
       </div>
 
-      {/* Full Calendar */}
       <FullCalendar
         windowResizeDelay={200}
         ref={calendarRef}

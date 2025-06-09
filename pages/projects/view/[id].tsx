@@ -85,6 +85,12 @@ const ProjectView = () => {
       <div className="flex flex-col pt-6 pb-16">
         <div className="w-full flex flex-col lg:flex-row border rounded-lg lg:h-[150vh]">
           <div className="flex flex-col flex-1 min-h-0 lg:min-w-0 overflow-hidden">
+            <style jsx global>{`
+        .title {
+          font-family: "Times New Roman", serif;
+          text-transform: capitalize;
+        }
+      `}</style>
             <ScrollArea className="h-auto lg:h-[80vh] lg:border-r">
               <div className="flex p-3.5 border-b items-center justify-between">
                 <span className="text-lg lg:text-3xl font-semibold flex items-center">
@@ -115,9 +121,7 @@ const ProjectView = () => {
               </div>
               {project && (
                 <div className="flex flex-col p-2 md:p-3.5 border-b">
-                  <span className="font-semibold text-xl">
-                    Project Information
-                  </span>
+                  <span className="title text-xl">Project Information</span>
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 py-6">
                     <div>
                       <label className="text-sm">PO Number</label>
@@ -265,9 +269,7 @@ const ProjectView = () => {
               )}
               {project && (
                 <div className="flex flex-col p-3.5">
-                  <span className="font-semibold text-xl">
-                    Site Information
-                  </span>
+                  <span className="title text-xl">Site Information</span>
                   <div className="grid lg:grid-cols-3 gap-4 py-6">
                     <div>
                       <label className="text-sm">Address Line 1</label>
@@ -551,7 +553,6 @@ const ProjectView = () => {
           </div>
           <div className="w-full lg:w-[40%] lg:border-l border-t lg:border-t-0 flex-none h-full overflow-auto">
             <div className="flex flex-col h-full min-h-0 overflow-hidden">
-            
               <ChatUI clientname={project?.client || ""} />
             </div>
           </div>
