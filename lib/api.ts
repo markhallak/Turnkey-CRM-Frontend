@@ -12,6 +12,23 @@ async function fetchJson<T>(path: string, params: Record<string, any> = {}): Pro
   return res.json();
 }
 
+export async function fetchWithRetry<T>(
+  requestFn: () => Promise<T>,
+  retries = 3,
+  delayMs = 5000
+) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await requestFn();
+    } catch (error) {
+      if (attempt === retries) throw error;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  // This will never happen but is required to satisfy TypeScript
+  throw new Error("unreachable");
+}
+
 export interface DashboardMetrics {
   totalInvoiced: number;
   totalCollected: number;
@@ -93,4 +110,4 @@ export async function getProfileDetails(userId: string) {
   return { firstName: data.first_name, hexColor: data.hex_color };
 }
 
-export { fetchJson };
+export { fetchJson, fetchWithRetry };
