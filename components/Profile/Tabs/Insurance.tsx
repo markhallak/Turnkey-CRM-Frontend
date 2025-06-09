@@ -20,7 +20,7 @@ const InsuranceTab = () => {
         .title { font-family: "Times New Roman", serif; text-transform: capitalize; color: #0b1f3a; }
       `}</style>
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
-            <p className="title bg-white !text-xl sm:text-base font-medium w-full lg:col-span-4">
+            <p className="title bg-white !text-xl sm:text-base font-medium w-full lg:col-span-4 border-b">
               General Liability
             </p>
             <FormItem>
@@ -49,7 +49,7 @@ const InsuranceTab = () => {
             </FormItem>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
-            <p className="title bg-white !text-xl sm:text-base font-medium w-full lg:col-span-4">
+            <p className="title bg-white !text-xl sm:text-base font-medium w-full lg:col-span-4 border-b">
               Automobile
             </p>
             <FormItem>
@@ -78,7 +78,7 @@ const InsuranceTab = () => {
             </FormItem>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
-            <p className="title bg-white !text-xl sm:text-base font-medium w-full lg:col-span-4">
+            <p className="title bg-white !text-xl sm:text-base font-medium w-full lg:col-span-4 border-b">
               Umbrella
             </p>
             <FormItem>
@@ -107,8 +107,8 @@ const InsuranceTab = () => {
             </FormItem>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
-            <p className="title bg-white !text-xl sm:text-base font-medium w-full lg:col-span-4">
-              WorkersComp
+            <p className="title bg-white !text-xl sm:text-base font-medium w-full lg:col-span-4 border-b">
+              Workers Comp
             </p>
             <FormItem>
               <Label className="!text-sm font-normal">Covered</Label>

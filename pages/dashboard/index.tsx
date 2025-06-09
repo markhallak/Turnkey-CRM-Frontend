@@ -46,7 +46,7 @@ export default function Dashboard() {
         </div>
       </div>
       <div className="flex flex-col py-4 pb-20">
-        <span className="text-2xl title">Latest Updates</span>
+        <span className="text-2xl title border-b">Latest Updates</span>
 
         <ul className="mt-5 space-y-1">
           {notifications.map((notification, index) => (
