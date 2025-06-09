@@ -11,10 +11,10 @@ import {
 } from "@/lib/api";
 import { useWrapperData } from "@/lib/wrapperContext";
 
-export default function Dashboard() {
+function DashboardContent() {
+  const { notifications } = useWrapperData();
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
-  const { notifications } = useWrapperData();
 
   useEffect(() => {
     const month = new Date().getMonth() + 1;
@@ -76,4 +76,8 @@ export default function Dashboard() {
       </div>
     </Wrapper>
   );
+}
+
+export default function Dashboard() {
+  return <DashboardContent />;
 }
