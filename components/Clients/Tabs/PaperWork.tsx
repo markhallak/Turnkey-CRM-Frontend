@@ -121,7 +121,7 @@ export const columns: ColumnDef<DocumentData>[] = [
                     </DropdownMenuItem>
                     <DropdownMenuItem>Download</DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem className="data-[highlighted]:bg-red-600 data-[highlighted]:text-black text-red-600">Delete</DropdownMenuItem>
+                    <DropdownMenuItem className="text-red-500 data-[highlighted]:bg-red-500/30 data-[highlighted]:text-red-700">Delete</DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
         ),
