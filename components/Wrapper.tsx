@@ -33,7 +33,7 @@ const Wrapper: FC<IProps> = ({ children, title, initialChildLoading = false }) =
     if (fetched.current) return;
     fetched.current = true;
 
-    const userId = process.env.NEXT_PUBLIC_DEFAULT_USER_ID;
+    const userId = process.env.NEXT_PUBLIC_DEFAULT_USER_ID ?? "";
     const getColor = () => `#${Math.floor(Math.random() * 0xffffff)
       .toString(16)
       .padStart(6, "0")}`;
@@ -41,11 +41,14 @@ const Wrapper: FC<IProps> = ({ children, title, initialChildLoading = false }) =
     setChildLoading(true);
     Promise.allSettled([
       fetchWithRetry(() => getNotifications(10)),
-      userId
-        ? fetchWithRetry(() => getProfileDetails(userId))
-        : Promise.resolve({ firstName: "A", hexColor: getColor() } as ProfileDetails),
+      fetchWithRetry(() => getProfileDetails(userId)),
     ])
       .then(([nRes, pRes]) => {
+        const profile: ProfileDetails =
+          pRes.status === "fulfilled"
+            ? pRes.value
+            : { firstName: "A", hexColor: getColor() };
+
         const notifications =
           nRes.status === "fulfilled"
             ? nRes.value.notifications.map((n) => ({
@@ -54,22 +57,15 @@ const Wrapper: FC<IProps> = ({ children, title, initialChildLoading = false }) =
                 time: new Date(n.createdAt).toLocaleString(),
                 unread: true,
                 avatar: (
-                 <div
+                  <div
                     className="flex h-8 w-8 items-center justify-center rounded-full text-white text-base font-medium cursor-pointer"
-                   style={{ backgroundColor: profile.hexColor }}
+                    style={{ backgroundColor: profile.hexColor }}
                   >
-                    <span className="-mt-[2px]">
-                      {profile.firstName.charAt(0)}
-                    </span>
+                    <span className="-mt-[2px]">{profile.firstName.charAt(0)}</span>
                   </div>
-               ),
+                ),
               }))
             : [];
-
-    const profile: ProfileDetails =
-      pRes.status === "fulfilled"
-        ? pRes.value
-        : { firstName: "A", hexColor: getColor() };
 
 
         setData({
