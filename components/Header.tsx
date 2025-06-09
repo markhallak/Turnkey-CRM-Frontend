@@ -19,6 +19,7 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { useRouter } from "next/router";
+import { useWrapperData } from "@/lib/wrapperContext";
 
 interface IProps {
   title: string;
@@ -41,7 +42,7 @@ const Header: FC<IProps> = ({ title }) => {
     { clientName: string; status: string; type: string; totalRevenue: number }[]
   >([]);
   const recentSearches = ["PO123", "Acme Co", "PO456", "Beta LLC"];
-  const userName = "Alexandra";
+  const { notifications: contextNotifs, userName, avatarColor } = useWrapperData();
   const router = useRouter();
   const path = router.asPath.split("?")[0];
 
@@ -66,84 +67,12 @@ const Header: FC<IProps> = ({ title }) => {
     return [{ text: sectionLabel }];
   }, [path, title]);
 
-  const baseNotifications = [
-    {
-      id: 1,
-      name: userName,
-      message: "New comment on your post",
-      time: "2 hours ago",
-      unread: true,
-    },
-    {
-      id: 2,
-      name: "Bob",
-      message:
-        "Your invoice is ready. New comment on your post. Your invoice is ready. New comment on your post",
-      time: "Yesterday",
-      unread: false,
-    },
-    {
-      id: 3,
-      name: userName,
-      message: "New comment on your post",
-      time: "2 hours ago",
-      unread: true,
-    },
-    {
-      id: 4,
-      name: "Bob",
-      message:
-        "Your invoice is ready. New comment on your post. Your invoice is ready. New comment on your post",
-      time: "Yesterday",
-      unread: false,
-    },
-    {
-      id: 5,
-      name: userName,
-      message: "New comment on your post",
-      time: "2 hours ago",
-      unread: true,
-    },
-    {
-      id: 6,
-      name: "Bob",
-      message:
-        "Your invoice is ready. New comment on your post. Your invoice is ready. New comment on your post",
-      time: "Yesterday",
-      unread: false,
-    },
-  ];
+  const [notifs, setNotifs] = useState(contextNotifs);
+  const bgColor = avatarColor;
 
-  const [notifs, setNotifs] = useState<typeof baseNotifications>([]);
   useEffect(() => {
-    setNotifs(
-      baseNotifications.map((n) => {
-        const bgColor = `#${Math.floor(Math.random() * 0xffffff)
-          .toString(16)
-          .padStart(6, "0")}`;
-        return {
-          ...n,
-          avatar: (
-            <div
-              className="flex h-8 w-8 items-center justify-center rounded-full text-white text-base font-medium cursor-pointer"
-              style={{ backgroundColor: bgColor }}
-            >
-              <span className="-mt-[2px]">{n.name.charAt(0)}</span>
-            </div>
-          ),
-        };
-      })
-    );
-  }, []);
-
-  const [bgColor, setBgColor] = useState<string>("");
-  useEffect(() => {
-    setBgColor(
-      `#${Math.floor(Math.random() * 0xffffff)
-        .toString(16)
-        .padStart(6, "0")}`
-    );
-  }, []);
+    setNotifs(contextNotifs);
+  }, [contextNotifs]);
 
   useEffect(() => {
     if (searchTerm === "") {

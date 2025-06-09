@@ -1,8 +1,12 @@
 import React from "react";
 import CurrencyFormat from "react-currency-format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { DashboardMetrics } from "@/lib/api";
 
-const Performance = () => {
+interface Props {
+  metrics: DashboardMetrics | null;
+}
+const Performance = ({ metrics }: Props) => {
   return (
     <div className="flex flex-col w-full">
       <span className="text-xl title mr-8">Performance Overview</span>
@@ -21,10 +25,10 @@ const Performance = () => {
         </CardHeader>
         <CardContent>
           <CurrencyFormat
-            value={545691}
-            displayType={"text"}
-            thousandSeparator={true}
-            prefix={"$"}
+            value={metrics?.totalInvoiced || 0}
+            displayType="text"
+            thousandSeparator
+            prefix="$"
             className="font-bold text-2xl h-10"
           />
         </CardContent>
@@ -44,10 +48,10 @@ const Performance = () => {
         </CardHeader>
         <CardContent>
           <CurrencyFormat
-            value={245698}
-            displayType={"text"}
-            thousandSeparator={true}
-            prefix={"$"}
+            value={metrics?.totalCollected || 0}
+            displayType="text"
+            thousandSeparator
+            prefix="$"
             className="font-bold text-2xl"
           />
         </CardContent>
@@ -66,7 +70,9 @@ const Performance = () => {
           <CardTitle>Projects Completed</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="font-bold text-2xl">141</p>
+          <p className="font-bold text-2xl">
+            {metrics ? metrics.totalProjects - metrics.openProjects : 0}
+          </p>
         </CardContent>
       </Card>
 
@@ -83,7 +89,7 @@ const Performance = () => {
           <CardTitle>Projects Open</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="font-bold text-2xl">62</p>
+          <p className="font-bold text-2xl">{metrics?.openProjects || 0}</p>
         </CardContent>
       </Card>
     </div>
