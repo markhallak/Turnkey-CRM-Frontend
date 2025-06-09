@@ -1,3 +1,5 @@
+"use client"
+
 import CalendarComponent from "@/components/Dashboard/CalenderComponent";
 import Performance from "@/components/Dashboard/Performance";
 import Wrapper from "@/components/Wrapper";

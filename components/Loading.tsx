@@ -1,3 +1,5 @@
+"use client"
+
 import React from "react";
 
 interface Quote {
@@ -17,13 +19,13 @@ export default function Loading() {
     setQuote(quotes[Math.floor(Math.random() * quotes.length)]);
   }, []);
   return (
-    <div className="flex items-center justify-center min-h-screen bg-[hsl(0_0%_98%)] p-4">
+    <div className="fixed inset-0 overflow-hidden flex items-center justify-center bg-[hsl(0_0%_98%)] p-4">
       <div className="flex flex-col items-center space-y-4">
         <div className="relative w-64 h-64 bg-white rounded-lg flex flex-col items-center justify-center text-center p-4">
           <img
             src="/blockquote.png"
             alt=""
-            className="absolute inset-0 w-full h-full object-contain opacity-30"
+            className="absolute inset-x-0 top-0 h-full object-contain opacity-30 -translate-y-4"
           />
           <span className="relative z-10 text-gray-700" style={{ fontFamily: "Times New Roman, serif" }}>
             {quote.text}
