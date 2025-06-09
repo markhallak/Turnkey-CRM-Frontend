@@ -17,16 +17,18 @@ export async function fetchWithRetry<T>(
   retries = 3,
   delayMs = 5000
 ) {
-  for (let attempt = 0; attempt <= retries; attempt++) {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       return await requestFn();
     } catch (error) {
-      if (attempt === retries) throw error;
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      lastError = error;
+      if (attempt < retries) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
     }
   }
-  // This will never happen but is required to satisfy TypeScript
-  throw new Error("unreachable");
+  throw lastError;
 }
 
 export interface DashboardMetrics {
