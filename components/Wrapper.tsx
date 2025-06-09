@@ -1,10 +1,12 @@
 import React, { FC, useEffect, useRef, useState } from "react";
 import Header from "./Header";
 import WrapperContext, { WrapperData } from "@/lib/wrapperContext";
+import Loading from "./Loading";
 import {
   getNotifications,
   getProfileDetails,
   type ProfileDetails,
+  fetchWithRetry,
 } from "@/lib/api";
 
 interface IProps {
@@ -15,7 +17,16 @@ interface IProps {
 
 const Wrapper: FC<IProps> = ({ children, title, initialChildLoading = false }) => {
   const [data, setData] = useState<WrapperData | null>(null);
-const [childLoading, setChildLoading] = useState(initialChildLoading);
+  const [childLoading, setChildLoadingState] = useState(initialChildLoading);
+  const loadingCount = useRef(initialChildLoading ? 1 : 0);
+  const setChildLoading = (loading: boolean) => {
+    if (loading) {
+      loadingCount.current += 1;
+    } else {
+      loadingCount.current = Math.max(0, loadingCount.current - 1);
+    }
+    setChildLoadingState(loadingCount.current > 0);
+  };
   const fetched = useRef(false);
 
   useEffect(() => {
@@ -27,10 +38,11 @@ const [childLoading, setChildLoading] = useState(initialChildLoading);
       .toString(16)
       .padStart(6, "0")}`;
 
+    setChildLoading(true);
     Promise.allSettled([
-      getNotifications(10),
+      fetchWithRetry(() => getNotifications(10)),
       userId
-        ? getProfileDetails(userId)
+        ? fetchWithRetry(() => getProfileDetails(userId))
         : Promise.resolve({ firstName: "A", hexColor: getColor() } as ProfileDetails),
     ])
       .then(([nRes, pRes]) => {
@@ -64,7 +76,8 @@ const [childLoading, setChildLoading] = useState(initialChildLoading);
           notifications,
           userName: profile.firstName,
           avatarColor: profile.hexColor,
-          setChildLoading
+          setChildLoading,
+          childLoading
         });
 
       })
@@ -74,15 +87,17 @@ const [childLoading, setChildLoading] = useState(initialChildLoading);
           notifications: [],
           userName: "A",
           avatarColor: color,
-          setChildLoading
+          setChildLoading,
+          childLoading
         });
-      });
+      })
+      .finally(() => setChildLoading(false));
   }, []);
 
-  if (!data || childLoading) return <div className="p-4">Loading...</div>;
+  if (!data || childLoading) return <Loading />;
 
   return (
-    <WrapperContext.Provider value={data}>
+    <WrapperContext.Provider value={{ ...data, childLoading }}>
       <div className="flex min-h-screen">
         <div className="flex-1 flex flex-col overflow-y-auto">
           <Header title={title} />

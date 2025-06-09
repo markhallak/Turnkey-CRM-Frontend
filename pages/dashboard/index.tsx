@@ -8,6 +8,7 @@ import {
   getDashboardMetrics,
   type CalendarEvent,
   type DashboardMetrics,
+  fetchWithRetry,
 } from "@/lib/api";
 import { useWrapperData } from "@/lib/wrapperContext";
 
@@ -23,17 +24,24 @@ const { notifications, setChildLoading } = useWrapperData();
     setChildLoading(true);
 
     const month = new Date().getMonth() + 1;
-    Promise.all([getCalendarEvents(month), getDashboardMetrics()])
+    Promise.allSettled([
+      fetchWithRetry(() => getCalendarEvents(month)),
+      fetchWithRetry(() => getDashboardMetrics()),
+    ])
       .then(([eventsRes, metricsRes]) => {
-        const mapped = eventsRes.events.map((e) => ({
-          title: e.business_name ?? "Event",
-          start: e.event_date,
-          end: e.event_date,
-          description: e.scope_of_work,
-          location: e.address,
-        }));
-        setEvents(mapped);
-        setMetrics(metricsRes.metrics[0] || null);
+        if (eventsRes.status === "fulfilled") {
+          const mapped = eventsRes.value.events.map((e) => ({
+            title: e.business_name ?? "Event",
+            start: e.event_date,
+            end: e.event_date,
+            description: e.scope_of_work,
+            location: e.address,
+          }));
+          setEvents(mapped);
+        }
+        if (metricsRes.status === "fulfilled") {
+          setMetrics(metricsRes.value.metrics[0] || null);
+        }
       })
       .catch(console.error)
       .finally(() => setChildLoading(false));

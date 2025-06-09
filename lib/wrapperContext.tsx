@@ -12,6 +12,7 @@ export interface WrapperData {
   userName: string;
   avatarColor: string;
   setChildLoading: (loading: boolean) => void;
+  childLoading: boolean;
 }
 
 const WrapperContext = createContext<WrapperData | null>(null);
