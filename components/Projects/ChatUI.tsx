@@ -1,4 +1,3 @@
-// ChatUI.tsx
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Paperclip, Send, User } from "lucide-react";

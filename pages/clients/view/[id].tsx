@@ -51,8 +51,6 @@ const ClientDetails = () => {
   }, [id]);
 
   useEffect(() => {
-        console.log("🗺️ map effect running, inputValue =", inputValue);
-
     setMapSrc(
       `https://www.google.com/maps?q=${encodeURIComponent(
         inputValue
