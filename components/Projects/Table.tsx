@@ -52,6 +52,10 @@ export type DocumentData = {
   assignee: string;
 };
 
+const labelMap: Record<string, string> = {
+  poNumber: "PO Number",
+};
+
 export const columns: ColumnDef<DocumentData>[] = [
   "poNumber",
   "client",
@@ -63,30 +67,37 @@ export const columns: ColumnDef<DocumentData>[] = [
   "nte",
   "assignee",
 ].map((key) => {
-  const header = ({ column }: any) => (
-    <div
-      className={`flex items-center gap-2 capitalize whitespace-nowrap pr-2 ${
-        key === "poNumber" ? "pl-8" : ""
-      } ${key === "assignee" ? "pr-8" : ""}`}
-    >
-      {key === "poNumber" ? "PO Number" : key}
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+  const header = ({ column, table }: any) => {
+    const visible = table.getVisibleLeafColumns();
+    const idx = visible.findIndex((col) => col.id === column.id);
+    const isLast = idx === visible.length - 1;
+    const isFirst = idx === 0;
+
+    return (
+      <div
+        className={`flex items-center gap-2 capitalize whitespace-nowrap pr-2 ${
+          isLast ? "pr-8" : ""
+        } ${isFirst ? "pl-8" : ""}`}
       >
-        {column.getIsSorted() ? (
-          column.getIsSorted() === "asc" ? (
-            <ArrowUp size={16} />
+        {labelMap[key] ?? key}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          {column.getIsSorted() ? (
+            column.getIsSorted() === "asc" ? (
+              <ArrowUp size={16} />
+            ) : (
+              <ArrowDown size={16} />
+            )
           ) : (
-            <ArrowDown size={16} />
-          )
-        ) : (
-          <ArrowUpDown size={16} />
-        )}
-      </Button>
-    </div>
-  );
+            <ArrowUpDown size={16} />
+          )}
+        </Button>
+      </div>
+    );
+  };
   if (key === "status") {
     return {
       accessorKey: "status",
@@ -194,16 +205,16 @@ function ProjectsTable({ onTableReady }: ProjectsTableProps) {
 
                 return (
                   <TableRow key={row.id} className="group">
-                    {row.getVisibleCells().map((cell) => {
-                      const headerName = cell.column.columnDef.accessorKey;
+                    {row.getVisibleCells().map((cell, idx, cells) => {
+                      const isFirst = idx === 0;
+                      const isLast = idx === cells.length - 1;
                       return (
                         <TableCell
                           key={cell.id}
-                          className={`${
-                            headerName === "poNumber" ? "!pl-10" : ""
-                          } ${
-                            headerName === "assignee" ? "!pr-8" : ""
-                          } py-3.5 pr-8 cursor-pointer capitalize`}
+                          className={`
+                  ${isFirst ? "!pl-10" : ""}
+                  ${isLast ? "!pr-8" : ""}
+                  py-3.5 pr-8 cursor-pointer capitalize`}
                           onClick={() =>
                             router.push(
                               "/projects/view/" +

@@ -48,6 +48,11 @@ export type DocumentData = {
   totalRevenue: number;
 };
 
+const labelMap: Record<string, string> = {
+  clientName: "Client Name",
+  totalRevenue: "Total Revenue",
+};
+
 export const columns: ColumnDef<DocumentData>[] = [
   "clientName",
   "status",
@@ -55,32 +60,37 @@ export const columns: ColumnDef<DocumentData>[] = [
   "totalRevenue",
 ].map((key) => ({
   accessorKey: key,
-  header: ({ column }) => (
-    <div className={`flex items-center gap-2 capitalize whitespace-nowrap pr-2 ${
-        key === "clientName" ? "pl-8" : ""
-      } ${key === "totalRevenue" ? "pr-8" : ""}`}>
-      {key == "clientName"
-        ? "Client Name"
-        : key == "totalRevenue"
-        ? "Total Revenue"
-        : key}
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+  header: ({ column, table }) => {
+    const visible = table.getVisibleLeafColumns();
+    const idx = visible.findIndex((col) => col.id === column.id);
+    const isLast = idx === visible.length - 1;
+    const isFirst = idx === 0;
+
+    return (
+      <div
+        className={`flex items-center gap-2 capitalize whitespace-nowrap pr-2 ${
+          isLast ? "pr-8" : ""
+        } ${isFirst ? "pl-8" : ""}`}
       >
-        {column.getIsSorted() ? (
-          column.getIsSorted() === "asc" ? (
-            <ArrowUp size={16} />
+        {labelMap[key] ?? key}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          {column.getIsSorted() ? (
+            column.getIsSorted() === "asc" ? (
+              <ArrowUp size={16} />
+            ) : (
+              <ArrowDown size={16} />
+            )
           ) : (
-            <ArrowDown size={16} />
-          )
-        ) : (
-          <ArrowUpDown size={16} />
-        )}
-      </Button>
-    </div>
-  ),
+            <ArrowUpDown size={16} />
+          )}
+        </Button>
+      </div>
+    );
+  },
   sortingFn: (rowA, rowB, columnId) => {
     const a = String(rowA.getValue(columnId)).toLowerCase();
     const b = String(rowB.getValue(columnId)).toLowerCase();
@@ -155,15 +165,14 @@ function ClientsTable({ onTableReady }: ClientsTableProps) {
                 const isOpen = openRowId === row.id;
                 return (
                   <TableRow key={row.id} className="group">
-                    {row.getVisibleCells().map((cell) => {
-                                              const headerName = cell.column.columnDef.accessorKey;
-
+                    {row.getVisibleCells().map((cell, idx, cells) => {
+                      const isFirst = idx === 0;
+                      const isLast = idx === cells.length - 1;
                       return (
                         <TableCell
                           key={cell.id}
-                          className={`${
-                            headerName === "clientName" ? "!pl-10" : ""
-                          } py-3.5 cursor-pointer capitalize`}
+                          className={`${isFirst ? "!pl-10" : ""}
+                  ${isLast ? "!pr-8" : ""} py-3.5 cursor-pointer capitalize`}
                           onClick={() =>
                             router.push(
                               "/clients/view/" +

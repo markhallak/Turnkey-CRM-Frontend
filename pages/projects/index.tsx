@@ -37,6 +37,9 @@ const Projects = () => {
   });
   const [tableInstance, setTableInstance] = useState<any>(null);
   const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
+  const labelMap: Record<string, string> = {
+    poNumber: "PO Number",
+  };
 
   return (
     <Wrapper title="Projects">
@@ -152,7 +155,7 @@ const Projects = () => {
                             column.toggleVisibility(!!value)
                           }
                         >
-                          {column.id === "poNumber" ? "PO Number" : column.id}
+                          {labelMap[column.id] ?? column.id}
                         </DropdownMenuCheckboxItem>
                       ))}
                 </DropdownMenuContent>

@@ -1,4 +1,4 @@
-"use client"
+"use client";
 import {
   Pagination,
   PaginationContent,
@@ -6,8 +6,8 @@ import {
   PaginationLink,
   PaginationNext,
   PaginationPrevious,
-} from "@/components/ui/pagination"
-import * as React from "react"
+} from "@/components/ui/pagination";
+import * as React from "react";
 import {
   ColumnDef,
   SortingState,
@@ -18,8 +18,8 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
-} from "@tanstack/react-table"
-import { Button } from "@/components/ui/button"
+} from "@tanstack/react-table";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -27,7 +27,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
+} from "@/components/ui/table";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,20 +35,20 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { GoKebabHorizontal } from "react-icons/go";
-import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react"
-import { invoicesData as data } from "@/lib/constants"
-import { useRouter } from "next/router"
-import CurrencyFormat from "react-currency-format"
+import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { invoicesData as data } from "@/lib/constants";
+import { useRouter } from "next/router";
+import CurrencyFormat from "react-currency-format";
 
 export type DocumentData = {
-  id: number
-  clientName: string
-  invoiceNumber: number
-  issueDate: string
-  dueDate: string
-  amount: number
-  status: "Outstanding" | "Draft" | "Collected"
-}
+  id: number;
+  clientName: string;
+  invoiceNumber: number;
+  issueDate: string;
+  dueDate: string;
+  amount: number;
+  status: "Outstanding" | "Draft" | "Collected";
+};
 
 const labelMap: Record<string, string> = {
   clientName: "Client Name",
@@ -57,44 +57,76 @@ const labelMap: Record<string, string> = {
   dueDate: "Due Date",
 };
 
-export const columns: ColumnDef<DocumentData>[] = ["clientName",  "invoiceNumber", "issueDate", "dueDate", "amount", "status"].map(
-  (key) => ({
-    accessorKey: key,
-    header: ({ column }) => (
-      <div className={`flex items-center gap-2 capitalize whitespace-nowrap pr-2 ${
-        key === "clientName" ? "pl-8" : ""
-      } ${key === "status" ? "pr-8" : ""}`}>
+export const columns: ColumnDef<DocumentData>[] = [
+  "clientName",
+  "invoiceNumber",
+  "issueDate",
+  "dueDate",
+  "amount",
+  "status",
+].map((key, index, arr) => ({
+  accessorKey: key,
+  header: ({ column, table }) => {
+    const visible = table.getVisibleLeafColumns();
+    const idx = visible.findIndex((col) => col.id === column.id);
+    const isLast = idx === visible.length - 1;
+    const isFirst = idx === 0;
+
+    return (
+      <div
+        className={`flex items-center gap-2 capitalize whitespace-nowrap ${
+          isLast ? "pr-8" : ""
+        } ${isFirst ? "pl-8" : ""}`}
+      >
         {labelMap[key] ?? key}
-        <Button variant="ghost" size="icon" onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
-          {column.getIsSorted() ? column.getIsSorted() === "asc" ? <ArrowUp size={16} /> : <ArrowDown size={16} /> : <ArrowUpDown size={16} />}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+        >
+          {column.getIsSorted() ? (
+            column.getIsSorted() === "asc" ? (
+              <ArrowUp size={16} />
+            ) : (
+              <ArrowDown size={16} />
+            )
+          ) : (
+            <ArrowUpDown size={16} />
+          )}
         </Button>
       </div>
+    );
+  },
+  sortingFn: (rowA, rowB, columnId) => {
+    const a = String(rowA.getValue(columnId)).toLowerCase();
+    const b = String(rowB.getValue(columnId)).toLowerCase();
+    return a.localeCompare(b);
+  },
+  cell: ({ getValue }) =>
+    key === "amount" ? (
+      <div className="truncate capitalize">
+        <CurrencyFormat
+          value={getValue() as number}
+          displayType="text"
+          thousandSeparator
+          prefix="$"
+        />
+      </div>
+    ) : (
+      <div className="truncate capitalize">{getValue() as string}</div>
     ),
-    sortingFn: (rowA, rowB, columnId) => {
-      const a = String(rowA.getValue(columnId)).toLowerCase()
-      const b = String(rowB.getValue(columnId)).toLowerCase()
-      return a.localeCompare(b)
-    },
-    cell: ({ getValue }) =>
-      key === "amount" ? (
-        <div className="truncate capitalize">
-          <CurrencyFormat value={getValue() as number} displayType="text" thousandSeparator prefix="$" />
-        </div>
-      ) : (
-        <div className="truncate capitalize">{getValue() as string}</div>
-      ),
-  }),
-)
+}));
 
 type BillingTableProps = {
   onTableReady?: (table: any) => void;
 };
 
 function BillingTable({ onTableReady }: BillingTableProps) {
-  const [sorting, setSorting] = React.useState<SortingState>([])
-  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
-  const [pageSize] = React.useState(10)
-    const [openRowId, setOpenRowId] = React.useState<string | null>(null);
+  const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [columnVisibility, setColumnVisibility] =
+    React.useState<VisibilityState>({});
+  const [pageSize] = React.useState(10);
+  const [openRowId, setOpenRowId] = React.useState<string | null>(null);
   const table = useReactTable({
     data,
     columns,
@@ -109,12 +141,12 @@ function BillingTable({ onTableReady }: BillingTableProps) {
       columnVisibility,
     },
     initialState: { pagination: { pageSize } },
-  })
+  });
 
-React.useEffect(() => {
+  React.useEffect(() => {
     onTableReady?.(table);
   }, [table, onTableReady]);
-    const router = useRouter()
+  const router = useRouter();
   return (
     <div className="w-full pb-28">
       <div className="rounded-md border overflow-x-auto">
@@ -123,8 +155,15 @@ React.useEffect(() => {
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id} className="text-left py-2" style={{ width: `${header.getSize()}px` }}>
-                    {flexRender(header.column.columnDef.header, header.getContext())}
+                  <TableHead
+                    key={header.id}
+                    className="text-left py-2"
+                    style={{ width: `${header.getSize()}px` }}
+                  >
+                    {flexRender(
+                      header.column.columnDef.header,
+                      header.getContext()
+                    )}
                   </TableHead>
                 ))}
               </TableRow>
@@ -133,31 +172,40 @@ React.useEffect(() => {
           <TableBody>
             {table.getRowModel().rows.length ? (
               table.getRowModel().rows.map((row) => {
-                                  const isOpen = openRowId === row.id;
+                const isOpen = openRowId === row.id;
 
-return (
-                <TableRow key={row.id} className="group">
-                  {row.getVisibleCells().map((cell) => {
-                                            const headerName = cell.column.columnDef.accessorKey;
-return (
-                    <TableCell
-                      key={cell.id}
-                      style={{ width: `${cell.column.getSize()}px` }}
-                      className={`${
-                            headerName === "clientName" ? "!pl-10" : ""
-                          } ${
-                            headerName === "status" ? "!pr-8" : ""
-                          } py-3.5 pr-8 cursor-pointer capitalize`}
-                      onClick={() =>
-                        router.push(
-                          "/billing/view/" + data.find((project) => project.id === parseInt(row.id) + 1)?.clientName,
-                        )
-                      }
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  )})}
-                  <TableCell className="sticky right-0 w-0 p-0 border-0 bg-transparent z-10 overflow-visible">
+                return (
+                  <TableRow key={row.id} className="group">
+                    {row.getVisibleCells().map((cell, idx, cells) => {
+                      const isFirst = idx === 0;
+                      const isLast = idx === cells.length - 1;
+                      return (
+                        <TableCell
+                          key={cell.id}
+                          style={{ width: `${cell.column.getSize()}px` }}
+                          className={`
+                  ${isFirst ? "!pl-10" : ""}
+                  ${isLast ? "!pr-8" : ""}
+                  py-3.5 pr-8 cursor-pointer capitalize
+                `}
+                          onClick={() =>
+                            router.push(
+                              "/billing/view/" +
+                                data.find(
+                                  (project) =>
+                                    project.id === parseInt(row.id) + 1
+                                )?.clientName
+                            )
+                          }
+                        >
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext()
+                          )}
+                        </TableCell>
+                      );
+                    })}
+                    <TableCell className="sticky right-0 w-0 p-0 border-0 bg-transparent z-10 overflow-visible">
                       <div
                         className={`absolute right-2 top-1/2 -translate-y-1/2 flex space-x-0.5
                          ${
@@ -184,11 +232,15 @@ return (
                         </DropdownMenu>
                       </div>
                     </TableCell>
-                </TableRow>
-              )})
+                  </TableRow>
+                );
+              })
             ) : (
               <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
+                <TableCell
+                  colSpan={columns.length}
+                  className="h-24 text-center"
+                >
                   No results.
                 </TableCell>
               </TableRow>
@@ -199,43 +251,51 @@ return (
       <div className="flex items-center justify-center mt-4">
         <div className="flex gap-2">
           <Pagination>
-      <PaginationContent>
-        <PaginationItem>
-          <PaginationPrevious
-            onClick={() => table.previousPage()}
-            aria-disabled={!table.getCanPreviousPage()}
-            className={`cursor-pointer text-gray-600 ${
-              !table.getCanPreviousPage() ? "opacity-50 pointer-events-none cursor-not-allowed" : ""
-            }`}
-          />
-        </PaginationItem>
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => table.previousPage()}
+                  aria-disabled={!table.getCanPreviousPage()}
+                  className={`cursor-pointer text-gray-600 ${
+                    !table.getCanPreviousPage()
+                      ? "opacity-50 pointer-events-none cursor-not-allowed"
+                      : ""
+                  }`}
+                />
+              </PaginationItem>
 
-        {Array.from({
-          length: Math.ceil(data.length / table.getState().pagination.pageSize),
-        }).map((_, index) => (
-          <PaginationItem key={index}>
-            <PaginationLink
-              onClick={() => table.setPageIndex(index)}
-              className={`cursor-pointer ${
-                table.getState().pagination.pageIndex === index ? "bg-gray-200 text-gray-600" : ""
-              }`}
-            >
-              {index + 1}
-            </PaginationLink>
-          </PaginationItem>
-        ))}
+              {Array.from({
+                length: Math.ceil(
+                  data.length / table.getState().pagination.pageSize
+                ),
+              }).map((_, index) => (
+                <PaginationItem key={index}>
+                  <PaginationLink
+                    onClick={() => table.setPageIndex(index)}
+                    className={`cursor-pointer ${
+                      table.getState().pagination.pageIndex === index
+                        ? "bg-gray-200 text-gray-600"
+                        : ""
+                    }`}
+                  >
+                    {index + 1}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
 
-        <PaginationItem>
-          <PaginationNext
-            onClick={() => table.nextPage()}
-            aria-disabled={!table.getCanNextPage()}
-            className={`cursor-pointer text-gray-600 ${
-              !table.getCanNextPage() ? "opacity-50 pointer-events-none cursor-not-allowed" : ""
-            }`}
-          />
-        </PaginationItem>
-      </PaginationContent>
-    </Pagination>
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => table.nextPage()}
+                  aria-disabled={!table.getCanNextPage()}
+                  className={`cursor-pointer text-gray-600 ${
+                    !table.getCanNextPage()
+                      ? "opacity-50 pointer-events-none cursor-not-allowed"
+                      : ""
+                  }`}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
         </div>
       </div>
     </div>

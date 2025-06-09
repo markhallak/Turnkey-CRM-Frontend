@@ -34,7 +34,12 @@ const Billing = () => {
   });
   const [tableInstance, setTableInstance] = useState<any>(null);
   const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
-
+  const labelMap: Record<string, string> = {
+    clientName: "Client Name",
+    invoiceNumber: "Invoice Number",
+    issueDate: "Issue Date",
+    dueDate: "Due Date",
+  };
   return (
     <Wrapper title="Billing">
       <div className="flex flex-col px-6 sm:px-0 md: px-0 lg:px-0 pt-6 pb-16">
@@ -149,11 +154,12 @@ const Billing = () => {
                         <DropdownMenuCheckboxItem
                           key={column.id}
                           checked={column.getIsVisible()}
+                          className="capitalize"
                           onCheckedChange={(value) =>
                             column.toggleVisibility(!!value)
                           }
                         >
-                          {column.id}
+                          {labelMap[column.id] ?? column.id}
                         </DropdownMenuCheckboxItem>
                       ))}
                 </DropdownMenuContent>

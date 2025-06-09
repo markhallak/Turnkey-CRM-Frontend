@@ -35,7 +35,10 @@ const Clients = () => {
   });
   const [tableInstance, setTableInstance] = useState<any>(null);
   const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
-
+  const labelMap: Record<string, string> = {
+    clientName: "Client Name",
+    totalRevenue: "Total Revenue",
+  };
   return (
     <Wrapper title="Clients">
       <div className="flex flex-col px-6 sm:px-0 md: px-0 lg:px-0 pt-6 pb-16">
@@ -165,11 +168,7 @@ const Clients = () => {
                             column.toggleVisibility(!!value)
                           }
                         >
-                          {column.id === "clientName"
-                            ? "Client Name"
-                            : column.id === "totalRevenue"
-                            ? "Total Revenue"
-                            : column.id}
+                          {labelMap[column.id] ?? column.id}
                         </DropdownMenuCheckboxItem>
                       ))}
                 </DropdownMenuContent>
