@@ -1,4 +1,4 @@
-import React, { FC, useEffect, useState } from "react";
+import React, { FC, useEffect, useRef, useState } from "react";
 import Header from "./Header";
 import WrapperContext, { WrapperData } from "@/lib/wrapperContext";
 import {
@@ -15,7 +15,12 @@ interface IProps {
 const Wrapper: FC<IProps> = ({ children, title }) => {
   const [data, setData] = useState<WrapperData | null>(null);
 
+  const fetched = useRef(false);
+
   useEffect(() => {
+    if (fetched.current) return;
+    fetched.current = true;
+
     const userId = process.env.NEXT_PUBLIC_DEFAULT_USER_ID;
     const getColor = () => `#${Math.floor(Math.random() * 0xffffff)
       .toString(16)
@@ -23,7 +28,9 @@ const Wrapper: FC<IProps> = ({ children, title }) => {
 
     Promise.all([
       getNotifications(10),
-      userId ? getProfileDetails(userId) : Promise.resolve({ firstName: "A", hexColor: getColor() } as ProfileDetails),
+      userId
+        ? getProfileDetails(userId)
+        : Promise.resolve({ firstName: "A", hexColor: getColor() } as ProfileDetails),
     ])
       .then(([nRes, profile]) => {
         const notifications = nRes.notifications.map((n) => ({
