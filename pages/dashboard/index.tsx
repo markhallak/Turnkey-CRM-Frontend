@@ -34,7 +34,6 @@ function DashboardContent() {
   }, []);
 
   return (
-    <Wrapper title="dashboard">
     <div className="px-6 sm:px-0 md: px-0 lg:px-0">
       <div className="flex flex-col lg:flex-row py-8 gap-10">
       <style jsx global>{`
@@ -74,10 +73,13 @@ function DashboardContent() {
         </ul>
       </div>
       </div>
-    </Wrapper>
   );
 }
 
 export default function Dashboard() {
-  return <DashboardContent />;
+  return (
+    <Wrapper title="dashboard">
+      <DashboardContent />
+    </Wrapper>
+  );
 }
