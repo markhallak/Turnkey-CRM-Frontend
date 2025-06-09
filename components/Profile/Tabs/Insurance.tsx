@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 
 const InsuranceTab = () => {
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col px-1">
       <div className="flex flex-col">
         <div className="flex flex-col mt-5 mb-10 space-y-6">
         <style jsx global>{`

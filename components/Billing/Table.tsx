@@ -227,7 +227,7 @@ function BillingTable({ onTableReady }: BillingTableProps) {
                             </button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent side="bottom" align="end">
-                            <DropdownMenuItem>Delete</DropdownMenuItem>
+                            <DropdownMenuItem className="data-[highlighted]:bg-red-600 data-[highlighted]:text-black text-red-600">Delete</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>
