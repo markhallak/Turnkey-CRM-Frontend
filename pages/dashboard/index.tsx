@@ -2,31 +2,37 @@ import CalendarComponent from "@/components/Dashboard/CalenderComponent";
 import Performance from "@/components/Dashboard/Performance";
 import Wrapper from "@/components/Wrapper";
 import { LuCircleUserRound } from "react-icons/lu";
-
-const notifications = [
-  {
-    title: "Logged in as Administrator",
-    date: "2025-02-19T04:07:12.000Z",
-    author: "Kevin Smith",
-  },
-  {
-    title: "New project created",
-    date: "2025-02-19T04:07:12.000Z",
-    author: "Jane Doe",
-  },
-  {
-    title: "Project updated",
-    date: "2025-02-19T04:07:12.000Z",
-    author: "Michael Johnson",
-  },
-  {
-    title: "Project deleted",
-    date: "2025-02-19T04:07:12.000Z",
-    author: "John Doe",
-  },
-];
+import React, { useEffect, useState } from "react";
+import {
+  getCalendarEvents,
+  getDashboardMetrics,
+  type CalendarEvent,
+  type DashboardMetrics,
+} from "@/lib/api";
+import { useWrapperData } from "@/lib/wrapperContext";
 
 export default function Dashboard() {
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  const { notifications } = useWrapperData();
+
+  useEffect(() => {
+    const month = new Date().getMonth() + 1;
+    Promise.all([getCalendarEvents(month), getDashboardMetrics()])
+      .then(([eventsRes, metricsRes]) => {
+        const mapped = eventsRes.events.map((e) => ({
+          title: e.business_name ?? "Event",
+          start: e.event_date,
+          end: e.event_date,
+          description: e.scope_of_work,
+          location: e.address,
+        }));
+        setEvents(mapped);
+        setMetrics(metricsRes.metrics[0] || null);
+      })
+      .catch(console.error);
+  }, []);
+
   return (
     <Wrapper title="dashboard">
     <div className="px-6 sm:px-0 md: px-0 lg:px-0">
@@ -39,29 +45,29 @@ export default function Dashboard() {
         }
       `}</style>
         <div className="flex-1 min-w-0">
-          <CalendarComponent />
+          <CalendarComponent events={events} />
         </div>
         <div className="md:col-span-1">
-          <Performance />
+          <Performance metrics={metrics} />
         </div>
       </div>
       <div className="flex flex-col py-4 pb-20">
         <span className="text-2xl title border-b">Latest Updates</span>
 
         <ul className="mt-5 space-y-1">
-          {notifications.map((notification, index) => (
+          {notifications.slice(0, 4).map((notification, index) => (
             <li
               key={index}
-              className="py-3 px-5 border rounded-lg border-gray-300 text-gray-800 font-medium grid grid-cols-2 md:grid-cols-3 
+              className="py-3 px-5 border rounded-lg border-gray-300 text-gray-800 font-medium grid grid-cols-2 md:grid-cols-3
                        transition-colors duration-200 hover:bg-gray-100 group"
             >
-              <span className="text-sm">{notification.title}</span>
+              <span className="text-sm">{notification.message}</span>
               <div className="items-center hidden md:flex">
                 <LuCircleUserRound size={22} />
-                <span className="ml-3 text-sm">{notification.author}</span>
+                <span className="ml-3 text-sm">System</span>
               </div>
               <span className="text-sm text-gray-600 text-right">
-                {new Date(notification.date).toDateString()}
+                {new Date(notification.createdAt).toDateString()}
               </span>
             </li>
           ))}

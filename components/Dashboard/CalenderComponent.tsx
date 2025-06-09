@@ -14,39 +14,13 @@ import { Button } from "../ui/button";
 import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { useSidebar } from "@/components/ui/sidebar";
 import { createPortal } from "react-dom";
+import type { CalendarEvent } from "@/lib/api";
 
-const events = [
-  {
-    title: "Meeting",
-    start: "2025-02-04T10:00:00",
-    end: "2025-02-04T12:00:00",
-    description: "Team meeting to discuss project updates.",
-    location: "Zoom",
-  },
-  {
-    title: "Workshop",
-    start: "2025-02-12T14:00:00",
-    end: "2025-02-12T16:00:00",
-    description: "Technical workshop on React and Tailwind CSS.",
-    location: "Conference Room 3",
-  },
-  {
-    title: "Client Call",
-    start: "2025-02-12T16:30:00",
-    end: "2025-02-12T17:00:00",
-    description: "Call with client to discuss project scope.",
-    location: "Google Meet",
-  },
-  {
-    title: "Project Deadline",
-    start: "2025-02-21T23:00:00",
-    end: "2025-02-21T23:30:00",
-    description: "Final submission of the software project.",
-    location: "Email Submission",
-  },
-];
+interface Props {
+  events: CalendarEvent[];
+}
 
-const CalendarComponent = () => {
+const CalendarComponent = ({ events }: Props) => {
   const [view, setView] = useState<"dayGridMonth" | "timeGridWeek">(
     "dayGridMonth"
   );
