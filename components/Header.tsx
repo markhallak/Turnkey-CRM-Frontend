@@ -395,7 +395,7 @@ const Header: FC<IProps> = ({ title }) => {
                   />
                 )}
               </PopoverTrigger>
-              <PopoverContent className="w-[20rem] p-0 mr-5 mt-2">
+              <PopoverContent className="w-[20rem] p-0 mr-5 sm:mr-16 mt-2">
                 <div className="flex items-center justify-between px-3 py-2 border-b">
                   <span className="font-semibold">Notifications</span>
                   <button

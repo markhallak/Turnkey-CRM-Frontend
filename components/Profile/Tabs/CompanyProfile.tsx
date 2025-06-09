@@ -11,7 +11,6 @@ const CompanyProfileTab: React.FC = () => {
     { label: "Organization Type", answer: "Type 1" },
     { label: "Year of Establishment", answer: "1994" },
     { label: "Annual Revenue (2023)", answer: "$111,003,112.00" },
-    { label: "Total Revenue (5 Years)", answer: "$111,003,112.00" },
     { label: "Accepted Payment Methods", answer: "Paypal, Venmo, Bank, Wire Transfer, Throne, YouPay" },
     { label: "NAICS", answer: "Inapplicable" },
     { label: "DUNS", answer: "Inapplicable" }

@@ -519,10 +519,11 @@ export default function OnboardingPage() {
   return (
     <div className="h-screen flex flex-col !overflow-hidden">
       <header
-        className="sticky top-0 w-full z-10 bg-white !overflow-hidden
+        className="sticky top-0 w-full z-10 bg-white     flex flex-col justify-between
+        !overflow-hidden
     text-center
     pt-4 sm:pt-6
-    min-h-[15vh] sm:min-h-[23vh]"
+    min-h-[15vh] sm:min-h-[23vh] pb-0 mb-0"
       >
         <AnimatePresence mode="wait">
           <motion.div
@@ -531,7 +532,7 @@ export default function OnboardingPage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3 }}
-            className="w-full pb-6 !overflow-hidden"
+            className="w-full !overflow-hidden"
           >
             <h1 className="text-3xl sm:text-4xl font-bold">
               {sections[step].title}
@@ -545,7 +546,7 @@ export default function OnboardingPage() {
         <Progress
           value={progress}
           className="
-    h-[0.3rem] w-full
+    h-[0.3rem] w-full mt-2
     rounded-none rounded-tr-full rounded-br-full
     [&>div]:transition-all
     [&>div]:duration-300
