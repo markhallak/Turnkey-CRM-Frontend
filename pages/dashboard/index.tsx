@@ -2,7 +2,7 @@ import CalendarComponent from "@/components/Dashboard/CalenderComponent";
 import Performance from "@/components/Dashboard/Performance";
 import Wrapper from "@/components/Wrapper";
 import { LuCircleUserRound } from "react-icons/lu";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   getCalendarEvents,
   getDashboardMetrics,
@@ -15,8 +15,13 @@ function DashboardContent() {
   const { notifications } = useWrapperData();
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  const [loading, setLoading] = useState(true);
+  const fetched = useRef(false);
 
   useEffect(() => {
+    if (fetched.current) return;
+    fetched.current = true;
+
     const month = new Date().getMonth() + 1;
     Promise.all([getCalendarEvents(month), getDashboardMetrics()])
       .then(([eventsRes, metricsRes]) => {
@@ -30,8 +35,11 @@ function DashboardContent() {
         setEvents(mapped);
         setMetrics(metricsRes.metrics[0] || null);
       })
-      .catch(console.error);
+      .catch(console.error)
+      .finally(() => setLoading(false));
   }, []);
+
+  if (loading) return <div className="p-4">Loading...</div>;
 
   return (
     <div className="px-6 sm:px-0 md: px-0 lg:px-0">
