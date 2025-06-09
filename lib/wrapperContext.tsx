@@ -11,6 +11,7 @@ export interface WrapperData {
   notifications: NotificationItem[];
   userName: string;
   avatarColor: string;
+  setChildLoading: (loading: boolean) => void;
 }
 
 const WrapperContext = createContext<WrapperData | null>(null);

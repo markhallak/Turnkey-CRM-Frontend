@@ -12,15 +12,15 @@ import {
 import { useWrapperData } from "@/lib/wrapperContext";
 
 function DashboardContent() {
-  const { notifications } = useWrapperData();
+const { notifications, setChildLoading } = useWrapperData();
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
-  const [loading, setLoading] = useState(true);
   const fetched = useRef(false);
 
   useEffect(() => {
     if (fetched.current) return;
     fetched.current = true;
+    setChildLoading(true);
 
     const month = new Date().getMonth() + 1;
     Promise.all([getCalendarEvents(month), getDashboardMetrics()])
@@ -36,10 +36,9 @@ function DashboardContent() {
         setMetrics(metricsRes.metrics[0] || null);
       })
       .catch(console.error)
-      .finally(() => setLoading(false));
+      .finally(() => setChildLoading(false));
   }, []);
 
-  if (loading) return <div className="p-4">Loading...</div>;
 
   return (
     <div className="px-6 sm:px-0 md: px-0 lg:px-0">
@@ -86,7 +85,7 @@ function DashboardContent() {
 
 export default function Dashboard() {
   return (
-    <Wrapper title="dashboard">
+    <Wrapper title="dashboard" initialChildLoading>
       <DashboardContent />
     </Wrapper>
   );

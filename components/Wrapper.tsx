@@ -10,11 +10,12 @@ import {
 interface IProps {
   children: React.ReactNode;
   title: string;
+  initialChildLoading?: boolean;
 }
 
-const Wrapper: FC<IProps> = ({ children, title }) => {
+const Wrapper: FC<IProps> = ({ children, title, initialChildLoading = false }) => {
   const [data, setData] = useState<WrapperData | null>(null);
-
+const [childLoading, setChildLoading] = useState(initialChildLoading);
   const fetched = useRef(false);
 
   useEffect(() => {
@@ -26,32 +27,46 @@ const Wrapper: FC<IProps> = ({ children, title }) => {
       .toString(16)
       .padStart(6, "0")}`;
 
-    Promise.all([
+    Promise.allSettled([
       getNotifications(10),
       userId
         ? getProfileDetails(userId)
         : Promise.resolve({ firstName: "A", hexColor: getColor() } as ProfileDetails),
     ])
-      .then(([nRes, profile]) => {
-        const notifications = nRes.notifications.map((n) => ({
-          id: n.id,
-          message: n.message,
-          time: new Date(n.createdAt).toLocaleString(),
-          unread: true,
-          avatar: (
-            <div
-              className="flex h-8 w-8 items-center justify-center rounded-full text-white text-base font-medium cursor-pointer"
-              style={{ backgroundColor: profile.hexColor }}
-            >
-              <span className="-mt-[2px]">{profile.firstName.charAt(0)}</span>
-            </div>
-          ),
-        }));
+      .then(([nRes, pRes]) => {
+        const notifications =
+          nRes.status === "fulfilled"
+            ? nRes.value.notifications.map((n) => ({
+                id: n.id,
+                message: n.message,
+                time: new Date(n.createdAt).toLocaleString(),
+                unread: true,
+                avatar: (
+                 <div
+                    className="flex h-8 w-8 items-center justify-center rounded-full text-white text-base font-medium cursor-pointer"
+                   style={{ backgroundColor: profile.hexColor }}
+                  >
+                    <span className="-mt-[2px]">
+                      {profile.firstName.charAt(0)}
+                    </span>
+                  </div>
+               ),
+              }))
+            : [];
+
+    const profile: ProfileDetails =
+      pRes.status === "fulfilled"
+        ? pRes.value
+        : { firstName: "A", hexColor: getColor() };
+
+
         setData({
           notifications,
           userName: profile.firstName,
           avatarColor: profile.hexColor,
+          setChildLoading
         });
+
       })
       .catch(() => {
         const color = getColor();
@@ -59,11 +74,12 @@ const Wrapper: FC<IProps> = ({ children, title }) => {
           notifications: [],
           userName: "A",
           avatarColor: color,
+          setChildLoading
         });
       });
   }, []);
 
-  if (!data) return <div className="p-4">Loading...</div>;
+  if (!data || childLoading) return <div className="p-4">Loading...</div>;
 
   return (
     <WrapperContext.Provider value={data}>
