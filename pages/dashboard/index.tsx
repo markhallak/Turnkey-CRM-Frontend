@@ -22,29 +22,32 @@ const { notifications, setChildLoading } = useWrapperData();
     if (fetched.current) return;
     fetched.current = true;
     setChildLoading(true);
-
     const month = new Date().getMonth() + 1;
-    Promise.allSettled([
-      fetchWithRetry(() => getCalendarEvents(month)),
-      fetchWithRetry(() => getDashboardMetrics()),
-    ])
-      .then(([eventsRes, metricsRes]) => {
-        if (eventsRes.status === "fulfilled") {
-          const mapped = eventsRes.value.events.map((e) => ({
-            title: e.business_name ?? "Event",
-            start: e.event_date,
-            end: e.event_date,
-            description: e.scope_of_work,
-            location: e.address,
-          }));
-          setEvents(mapped);
-        }
-        if (metricsRes.status === "fulfilled") {
-          setMetrics(metricsRes.value.metrics[0] || null);
-        }
-      })
-      .catch(console.error)
-      .finally(() => setChildLoading(false));
+
+    const load = async () => {
+      try {
+        const [eventsRes, metricsRes] = await Promise.all([
+          fetchWithRetry(() => getCalendarEvents(month)),
+          fetchWithRetry(() => getDashboardMetrics()),
+        ]);
+
+        const mapped = eventsRes.events.map((e) => ({
+          title: e.business_name ?? "Event",
+          start: e.event_date,
+          end: e.event_date,
+          description: e.scope_of_work,
+          location: e.address,
+        }));
+        setEvents(mapped);
+        setMetrics(metricsRes.metrics[0] || null);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setChildLoading(false);
+      }
+    };
+
+    load();
   }, []);
 
 
