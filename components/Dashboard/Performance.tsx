@@ -16,8 +16,8 @@ const Performance = ({ metrics }: Props) => {
          bg-blue-500/20
     backdrop-blur-md
     border border-white/30
-    rounded-lg shadow-lg
-    flex flex-col mt-7 h-28
+    rounded-lg shadow-[0_0_12px_rgba(0,0,0,0.1)]
+    flex flex-col mt-8 h-28
       "
       >
         <CardHeader className="pb-0 mb-4">
@@ -39,7 +39,7 @@ const Performance = ({ metrics }: Props) => {
          bg-blue-500/20
     backdrop-blur-md
     border border-white/30
-    rounded-lg shadow-lg
+    rounded-lg shadow-[0_0_12px_rgba(0,0,0,0.1)]
     flex flex-col mt-6 h-28
       "
       >
@@ -62,7 +62,7 @@ const Performance = ({ metrics }: Props) => {
          bg-blue-500/20
     backdrop-blur-md
     border border-white/30
-    rounded-lg shadow-lg
+    rounded-lg shadow-[0_0_12px_rgba(0,0,0,0.1)]
     flex flex-col mt-6 h-28
       "
       >
@@ -81,7 +81,7 @@ const Performance = ({ metrics }: Props) => {
          bg-blue-500/20
     backdrop-blur-md
     border border-white/30
-    rounded-lg shadow-lg
+    rounded-lg shadow-[0_0_12px_rgba(0,0,0,0.1)]
     flex flex-col mt-6 h-28
       "
       >

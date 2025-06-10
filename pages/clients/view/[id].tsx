@@ -155,7 +155,7 @@ const ClientDetails = () => {
               ].map((stat) => (
                 <Card
                   key={stat.title}
-                  className="bg-blue-500/20 backdrop-blur-md border border-white/30 rounded-lg shadow-lg flex flex-col h-28"
+                  className="bg-blue-500/20 backdrop-blur-md border border-white/30 rounded-lg shadow-[0_0_12px_rgba(0,0,0,0.1)] flex flex-col h-28"
                 >
                   <CardHeader className="pb-0 mb-4">
                     <CardTitle>{stat.title}</CardTitle>

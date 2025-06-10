@@ -4,6 +4,7 @@ import React, { FC, useEffect, useRef, useState } from "react";
 import Header from "./Header";
 import WrapperContext, { WrapperData } from "@/lib/wrapperContext";
 import Loading from "./Loading";
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   getNotifications,
   getProfileDetails,
@@ -102,17 +103,28 @@ const Wrapper: FC<IProps> = ({ children, title, initialChildLoading = false }) =
         childLoading,
       }}>
       <div className="flex min-h-screen">
-    <div className="flex-1 flex flex-col overflow-y-auto">
+    <div className={`flex-1 flex flex-col ${
+    childLoading ? 'overflow-hidden' : 'overflow-y-auto'}`}>
       <Header title={title} />
 
       <div className="relative overflow-hidden w-full px-4 sm:px-16 lg:px-16">
         {children}
 
-        {childLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-[hsl(0_0%_98%)] z-10">
-            <Loading />
-          </div>
-        )}
+        <AnimatePresence>
+  {childLoading && (
+    <motion.div
+      key="loading-overlay"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      className="fixed inset-0 flex items-center justify-center bg-[hsl(0_0%_98%)] z-50"
+    >
+      <Loading />
+    </motion.div>
+  )}
+</AnimatePresence>
+
       </div>
     </div>
   </div>
