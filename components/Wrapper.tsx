@@ -102,19 +102,20 @@ const Wrapper: FC<IProps> = ({ children, title, initialChildLoading = false }) =
         childLoading,
       }}>
       <div className="flex min-h-screen">
-        <div className={`${childLoading ? "opacity-0 pointer-events-none" : ""} flex-1 flex flex-col overflow-y-auto`}>
-        <Header title={title} />
-        <div className="w-full px-4 sm:px-16 lg:px-16">
-          {children}
-        </div>
-      </div>
+    <div className="flex-1 flex flex-col overflow-y-auto">
+      <Header title={title} />
 
-      {childLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[hsl(0_0%_98%)] z-50">
-          <Loading />
-        </div>
-      )}
+      <div className="relative overflow-hidden w-full px-4 sm:px-16 lg:px-16">
+        {children}
+
+        {childLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-[hsl(0_0%_98%)] z-10">
+            <Loading />
+          </div>
+        )}
+      </div>
     </div>
+  </div>
     </WrapperContext.Provider>
   );
 };
