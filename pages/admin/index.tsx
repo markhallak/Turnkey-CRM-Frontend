@@ -37,6 +37,7 @@ import {
   Trash2,
   Plus,
 } from "lucide-react";
+import { serverUrl } from "@/lib/config";
 import {
   Select,
   SelectTrigger,
@@ -135,6 +136,15 @@ function GenericTable({ config }: { config: TableConfig }) {
           >
             <Trash2 size={16} />
           </Button>
+          {config.name === "User" && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => handleInvite(row.original.id)}
+            >
+              Invite
+            </Button>
+          )}
         </div>
       ),
     },
@@ -169,6 +179,18 @@ function GenericTable({ config }: { config: TableConfig }) {
   const handleDelete = () => {
     setData(data.filter((item) => item.id !== selected.id));
     setIsDeleteOpen(false);
+  };
+
+  const handleInvite = async (userId: string) => {
+    try {
+      await fetch(`${serverUrl}/auth/invite`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const allColors = Object.entries(twColors)

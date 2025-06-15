@@ -1,12 +1,55 @@
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+import hmac
+from hashlib import sha256
 from typing import Optional
 from uuid import UUID
 
 from asyncpg import create_pool, Pool, Connection
-from fastapi import FastAPI, HTTPException, Query, Body, Request, Depends
+from fastapi import FastAPI, HTTPException, Query, Body, Request, Depends, status
+import casbin
 from constants import DATABASE_URL
-from util import isUUIDv4
+from util import isUUIDv4, createMagicLink, generateJwt, getUserRoles
+
+enforcer = casbin.Enforcer("model.conf", "policy.csv")
+enforcer.enable_auto_save(True)
+enforcer.enable_log(True)
+
+
+class SimpleUser:
+    def __init__(self, username: str, setup_done: bool, onboarding_done: bool):
+        self.username = username
+        self.setup_done = setup_done
+        self.onboarding_done = onboarding_done
+
+
+async def getCurrentUser(request: Request) -> SimpleUser:
+    username = request.headers.get("x-username", "guest")
+    async with request.app.state.db_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT setup_recovery_done, onboarding_done FROM \"user\" WHERE email=$1",
+            username,
+        )
+    if row:
+        return SimpleUser(username, row["setup_recovery_done"], row["onboarding_done"])
+    return SimpleUser(username, True, True)
+
+
+async def authorize(request: Request, user: SimpleUser = Depends(getCurrentUser)):
+    path = request.url.path
+    if not user.setup_done and not path.startswith("/auth") and path != "/setup-recovery":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Finish setup recovery")
+    if user.setup_done and not user.onboarding_done and not path.startswith("/auth") and path != "/onboarding":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Finish onboarding")
+    sub = user.username
+    domain = "global"
+    obj = path
+    act = request.method.lower()
+    if not enforcer.enforce(sub, domain, obj, act):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+    return True
+
+SECRET_KEY = "dev-secret"
 
 
 @asynccontextmanager
@@ -23,7 +66,7 @@ async def lifespan(app: FastAPI):
     print("DB pool closed")
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(lifespan=lifespan, dependencies=[Depends(authorize)])
 
 
 def get_db_pool(request: Request) -> Pool:
@@ -1899,22 +1942,135 @@ async def updateInsuranceData(
 
     return {"insuranceId": insuranceId}
 
-@app.post("/setup-recovery")
-async def setupRecovery(payload: dict = Body()):
-    userId = payload['userId']
-    purpose = payload['purpose']
 
-    if not isUUIDv4(userId):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid UUIDv4 (must be lowercase-hyphenated): {userId}"
-        )
+@app.post("/auth/invite")
+async def inviteUser(payload: dict = Body(), conn: Connection = Depends(get_conn)):
+    userId = payload.get("userId")
+    if not userId or not isUUIDv4(userId):
+        raise HTTPException(status_code=400, detail="Invalid userId")
 
-    return {
-        "status": "success",
-        "userId": userId,
-        "purpose": purpose
-    }
+    email = await conn.fetchval("SELECT email FROM \"user\" WHERE id=$1", UUID(userId))
+    if not email:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    uuidStr, sig = await createMagicLink(
+        conn,
+        UUID(userId),
+        SECRET_KEY,
+        purpose="invite",
+        redirect_path="/sign-up",
+        ttlHours=6,
+    )
+    link = f"/auth/sign-up?u={uuidStr}&s={sig}"
+    await conn.execute(
+        "INSERT INTO notification (triggered_by_category, triggered_by_id, content) VALUES ($1,$2,$3)",
+        "auth",
+        UUID(userId),
+        link,
+    )
+    return {"status": "link sent"}
+
+
+@app.post("/auth/login")
+async def login(payload: dict = Body(), conn: Connection = Depends(get_conn)):
+    email = payload.get("email")
+    if not email:
+        raise HTTPException(status_code=400, detail="Email required")
+    row = await conn.fetchrow("SELECT id FROM \"user\" WHERE email=$1", email)
+    if not row:
+        raise HTTPException(status_code=404, detail="User not found")
+    userId = row["id"]
+    uuidStr, sig = await createMagicLink(
+        conn,
+        userId,
+        SECRET_KEY,
+        purpose="login",
+        redirect_path="/dashboard",
+        ttlHours=1,
+    )
+    link = f"/auth/sign-up?u={uuidStr}&s={sig}"
+    await conn.execute(
+        "INSERT INTO notification (triggered_by_category, triggered_by_id, content) VALUES ($1,$2,$3)",
+        "auth",
+        userId,
+        link,
+    )
+    return {"status": "link sent"}
+
+
+@app.get("/auth/sign-up")
+async def signUp(u: str = Query(...), s: str = Query(...), conn: Connection = Depends(get_conn)):
+    if not isUUIDv4(u):
+        raise HTTPException(status_code=400, detail="Invalid uuid")
+    row = await conn.fetchrow(
+        "SELECT m.user_id, m.sig, m.expires_at, m.consumed, u.email FROM magic_link m JOIN \"user\" u ON m.user_id=u.id WHERE m.uuid=$1 AND m.purpose='invite'",
+        UUID(u),
+    )
+    if not row:
+        raise HTTPException(status_code=400, detail="Link not found")
+    computed = hmac.new(SECRET_KEY.encode("utf-8"), u.encode("utf-8"), sha256).hexdigest()
+    if not hmac.compare_digest(computed, s) or row["sig"] != s:
+        raise HTTPException(status_code=400, detail="Invalid signature")
+    if row["consumed"] or row["expires_at"] < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Link expired")
+    await conn.execute("UPDATE magic_link SET consumed=TRUE WHERE uuid=$1", UUID(u))
+    roles = await getUserRoles(conn, row["user_id"])
+    token = generateJwt({"sub": str(row["user_id"]), "scope": "set_recovery_phrase", "roles": roles}, SECRET_KEY, 900)
+    response = {"userId": str(row["user_id"]), "username": row["email"]}
+    from fastapi.responses import JSONResponse
+    res = JSONResponse(content=response)
+    res.set_cookie("token", token, httponly=True, secure=True, max_age=900)
+    return res
+
+@app.post("/auth/setup-recovery")
+async def setupRecovery(payload: dict = Body(), conn: Connection = Depends(get_conn)):
+    userId = payload.get("userId")
+    encSalt = payload.get("salt")
+    encParams = payload.get("kdfParams")
+    sigKey = payload.get("sigKey")
+    encKey = payload.get("encKey")
+
+    if not userId or not isUUIDv4(userId):
+        raise HTTPException(status_code=400, detail="Invalid userId")
+
+    await conn.execute(
+        "INSERT INTO password (user_id, client_id, encrypted_password, iv, salt, kdf_params) VALUES ($1, $2, '', '', $3, $4) ON CONFLICT (user_id) DO UPDATE SET salt=EXCLUDED.salt, kdf_params=EXCLUDED.kdf_params",
+        userId,
+        UUID("00000000-0000-0000-0000-000000000000"),
+        encSalt,
+        encParams,
+    )
+    await conn.execute(
+        "INSERT INTO user_key (user_id, purpose, public_key) VALUES ($1, 'sig', $2) ON CONFLICT (user_id, purpose) DO UPDATE SET public_key=EXCLUDED.public_key",
+        userId,
+        sigKey,
+    )
+    await conn.execute(
+        "INSERT INTO user_key (user_id, purpose, public_key) VALUES ($1, 'enc', $2) ON CONFLICT (user_id, purpose) DO UPDATE SET public_key=EXCLUDED.public_key",
+        userId,
+        encKey,
+    )
+    await conn.execute(
+        "UPDATE \"user\" SET is_active=TRUE, setup_recovery_done=TRUE WHERE id=$1",
+        userId,
+    )
+
+    roles = await getUserRoles(conn, UUID(userId))
+    access = generateJwt({"sub": userId, "roles": roles}, SECRET_KEY, 900)
+    refresh = generateJwt({"sub": userId, "scope": "refresh", "roles": roles}, SECRET_KEY, 1209600)
+    return {"access": access, "refresh": refresh}
+
+
+@app.post("/auth/complete-onboarding")
+async def completeOnboarding(payload: dict = Body(), conn: Connection = Depends(get_conn)):
+    userId = payload.get("userId")
+    if not userId or not isUUIDv4(userId):
+        raise HTTPException(status_code=400, detail="Invalid userId")
+    await conn.execute(
+        "UPDATE \"user\" SET onboarding_done=TRUE WHERE id=$1",
+        userId,
+    )
+    return {"status": "ok"}
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ import * as React from "react";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/router";
+import { serverUrl } from "@/lib/config";
 import Image from 'next/image';
 
 export default function LoginForm({
@@ -34,14 +35,17 @@ export default function LoginForm({
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (error || !email) return;
-    console.log("Logging in with:", email);
     setLoading(true);
     try {
-      await new Promise((res) => setTimeout(res, 1000));
-      toast({
-        description: "You have been logged in successfully.",
+      const res = await fetch(`${serverUrl}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-username": email },
+        body: JSON.stringify({ email }),
       });
-      router.push("/dashboard");
+      if (!res.ok) throw new Error("request failed");
+      toast({ description: "Check your email for a login link." });
+    } catch {
+      toast({ description: "Failed to send login link.", variant: "destructive" });
     } finally {
       setLoading(false);
     }

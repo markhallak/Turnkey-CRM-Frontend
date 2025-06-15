@@ -27,6 +27,8 @@ export default function App({ Component, pageProps }: AppProps) {
       if (
         router.pathname === "/login" ||
         router.pathname === "/onboarding" ||
+        router.pathname === "/setup-recovery" ||
+        router.pathname === "/sign-up" ||
         router.pathname === "/projects/new" ||
         router.pathname === "/clients/new" ||
         router.pathname === "/billing/new"
@@ -53,7 +55,7 @@ export default function App({ Component, pageProps }: AppProps) {
     };
   }, [router]);
 
-  const noSidebar = ["/login", "/onboarding"].includes(router.pathname);
+  const noSidebar = ["/login", "/onboarding", "/setup-recovery", "/sign-up"].includes(router.pathname);
 
   return (
     <ToastProvider>
