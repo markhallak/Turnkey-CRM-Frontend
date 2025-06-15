@@ -108,9 +108,7 @@ const Wrapper: FC<IProps> = ({ children, title, initialChildLoading = false }) =
       <Header title={title} />
 
       <div className="relative overflow-hidden w-full px-4 sm:px-16 lg:px-16">
-        {children}
-
-        <AnimatePresence>
+      <AnimatePresence>
   {childLoading && (
     <motion.div
       key="loading-overlay"
@@ -124,6 +122,7 @@ const Wrapper: FC<IProps> = ({ children, title, initialChildLoading = false }) =
     </motion.div>
   )}
 </AnimatePresence>
+        {children}
 
       </div>
     </div>
