@@ -1,0 +1,15 @@
+# Employee roles in the global domain
+p, emp_admin, global, *, *
+
+# Account manager limited per-client
+p, acct_manager, client1, /clients, read
+p, acct_manager, client1, /projects, read
+
+# Client-side admin full access
+p, client_admin, client1, /projects, read
+p, client_admin, client1, /projects, write
+p, client_admin, client1, /comments, write
+
+# Technician restricted to basic project reads and comments
+p, tech, client1, /projects, read_basic
+p, tech, client1, /comments, write
