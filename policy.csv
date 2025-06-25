@@ -1,25 +1,28 @@
-# Employee roles in the global domain
-p, emp_admin, *, *, *
+# policy.csv
 
-# Account manager limited per-client
-p, emp_acct_manager, *, /clients, read
-p, emp_acct_manager, *, /projects, read
-p, emp_acct_manager, *, /projects, write
+# — Permission rules —
+# p, role,                  domain,     resource,               action
+p, employee_admin,          *,          *,                      *
 
-# Client-side admin full access
-p, client_admin, *, /projects, read
-p, client_admin, *, /projects, write
-p, client_admin, *, /send-message, read
-p, client_admin, *, /send-message, write
+p, employee_account_manager, *,          /clients,               *
+p, employee_account_manager, *,          /clients/*,             *
+p, employee_account_manager, *,          /projects,              *
+p, employee_account_manager, *,          /projects/*,            *
+p, employee_account_manager, *,          /get-messages,          *
+p, employee_account_manager, *,          /send-message,          *
 
-# Technician restricted to project reads without financial info
-p, client_tech, *, /projects, read_without_financial
+p, client_admin,             *,          /projects,              *
+p, client_admin,             *,          /send-message,          *
 
-#—— map users to roles in specific domains ——
-g, alice, emp_admin, *
-g, alice, emp_admin, *
-g, bob,   emp_acct_manager,  client1
-g, bob,   emp_acct_manager,  client2
-g, john,   emp_acct_manager,  client2
-g, carol, client_admin, *
-g, dave,  client_tech,  *
+p, client_technician,        *,          /projects,              read_without_financial
+p, client_technician,        *,          /projects/view/*,       read_without_financial
+p, client_technician,        *,          /get-messages,          *
+
+# — Grouping (user → role + domain) —
+# g, user,                   role,                    domain
+g, alice,                   employee_admin,          *
+g, bob,                     employee_account_manager,client1
+g, bob,                     employee_account_manager,client2
+g, john,                    employee_account_manager,client2
+g, carol,                   client_admin,            *
+g, dave,                    client_technician,       client1
