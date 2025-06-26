@@ -41,7 +41,7 @@ const Header: FC<IProps> = ({ title }) => {
   const [clientResults, setClientResults] = useState<
     { clientName: string; status: string; type: string; totalRevenue: number }[]
   >([]);
-  const recentSearches = ["PO123", "Acme Co", "PO456", "Beta LLC"];
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const { notifications: contextNotifs, userName, avatarColor } = useWrapperData();
   const router = useRouter();
   const path = router.asPath.split("?")[0];
@@ -71,8 +71,33 @@ const Header: FC<IProps> = ({ title }) => {
   const bgColor = avatarColor;
 
   useEffect(() => {
+    const match = document.cookie
+      .split("; ")
+      .find((row) => row.startsWith("recent_searches="));
+    if (match) {
+      try {
+        const value = decodeURIComponent(match.split("=")[1]);
+        setRecentSearches(JSON.parse(value));
+      } catch {
+        setRecentSearches([]);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
     setNotifs(contextNotifs);
   }, [contextNotifs]);
+
+  const updateRecentSearches = (term: string) => {
+    const next = [term, ...recentSearches.filter((t) => t !== term)].slice(0, 5);
+    setRecentSearches(next);
+    document.cookie = `recent_searches=${encodeURIComponent(JSON.stringify(next))}; path=/; max-age=${60 * 60 * 24 * 365}`;
+  };
+
+  const handleSelectSearch = (term: string) => {
+    setSearchTerm(term);
+    updateRecentSearches(term);
+  };
 
   useEffect(() => {
     if (searchTerm === "") {
@@ -219,7 +244,7 @@ const Header: FC<IProps> = ({ title }) => {
                         {recentSearches.map((item, idx) => (
                           <div
                             key={idx}
-                            onClick={() => setSearchTerm(item)}
+                            onClick={() => handleSelectSearch(item)}
                             className="p-2 cursor-pointer hover:bg-gray-100 rounded flex items-center justify-between transition-colors duration-100 ease-in-out"
                           >
                             <span>{item}</span>
@@ -243,6 +268,7 @@ const Header: FC<IProps> = ({ title }) => {
                               <Link
                                 key={i}
                                 href={`/projects/view/${r.poNumber}`}
+                                onClick={() => handleSelectSearch(r.poNumber)}
                                 className="group block rounded-xl bg-white p-6 shadow-md transition-shadow duration-200 hover:shadow-xl w-full h-42"
                               >
                                 <div className="flex items-center justify-between">
@@ -279,6 +305,7 @@ const Header: FC<IProps> = ({ title }) => {
                               <Link
                                 key={i}
                                 href={`/clients/${c.clientName}`}
+                                onClick={() => handleSelectSearch(c.clientName)}
                                 className="group block rounded-xl bg-white p-6 shadow-md transition-shadow duration-200 hover:shadow-xl w-full h-42"
                               >
                                 <div className="flex items-center justify-between">
@@ -348,28 +375,31 @@ const Header: FC<IProps> = ({ title }) => {
                   </button>
                 </div>
                 <ScrollArea className="overflow-y-auto max-h-60">
-                  {notifs.map((n) => (
-                    <div
-                      key={n.id}
-                      onClick={() => handleMarkRead(n.id)}
-                      className="flex items-start p-4 hover:bg-gray-100 transition-all duration-200 transform hover:-translate-y-0.5 cursor-pointer"
-                    >
-                      {n.avatar}
-                      <div className="ml-3 flex-1 flex flex-col space-y-0.5 -mt-1">
-                        <p className="text-sm text-gray-700 break-words mb-0">
-                          {n.message}
-                        </p>
-                        <span className="text-xs text-gray-400 mt-0">
-                          {n.time}
-                        </span>
-                      </div>
+                  {notifs.length === 0 ? (
+                    <div className="p-4 text-sm text-gray-500">No notifications</div>
+                  ) : (
+                    notifs.map((n) => (
+                      <div
+                        key={n.id}
+                        onClick={() => handleMarkRead(n.id)}
+                        className="flex items-start p-4 hover:bg-gray-100 transition-all duration-200 transform hover:-translate-y-0.5 cursor-pointer"
+                      >
+                        {n.avatar}
+                        <div className="ml-3 flex-1 flex flex-col space-y-0.5 -mt-1">
+                          <p className="text-sm text-gray-700 break-words mb-0">
+                            {n.message}
+                          </p>
+                          <span className="text-xs text-gray-400 mt-0">
+                            {n.time}
+                          </span>
+                        </div>
 
-                      <span
-                        className={`flex-shrink-0 self-center h-2 w-2 bg-blue-500 rounded-full transition-opacity duration-100
-      ${n.unread ? "opacity-100" : "opacity-0"}`}
-                      />
-                    </div>
-                  ))}
+                        <span
+                          className={`flex-shrink-0 self-center h-2 w-2 bg-blue-500 rounded-full transition-opacity duration-100 ${n.unread ? "opacity-100" : "opacity-0"}`}
+                        />
+                      </div>
+                    ))
+                  )}
                   <ScrollBar orientation="vertical" />
                 </ScrollArea>
               </PopoverContent>

@@ -73,24 +73,27 @@ const { notifications, setChildLoading } = useWrapperData();
       <div className="flex flex-col py-4 pb-20">
         <span className="text-2xl title border-b">Latest Updates</span>
 
-        <ul className="mt-5 space-y-1">
-          {notifications.slice(0, 4).map((notification, index) => (
-            <li
-              key={index}
-              className="py-3 px-5 border rounded-lg border-gray-300 text-gray-800 font-medium grid grid-cols-2 md:grid-cols-3
-                       transition-colors duration-200 hover:bg-gray-100 group"
-            >
-              <span className="text-sm">{notification.message}</span>
-              <div className="items-center hidden md:flex">
-                <LuCircleUserRound size={22} />
-                <span className="ml-3 text-sm">System</span>
-              </div>
-              <span className="text-sm text-gray-600 text-right">
-                {new Date(notification.createdAt).toDateString()}
-              </span>
-            </li>
-          ))}
-        </ul>
+        {notifications.slice(0, 4).length === 0 ? (
+          <p className="mt-5 text-sm text-gray-500">No updates</p>
+        ) : (
+          <ul className="mt-5 space-y-1">
+            {notifications.slice(0, 4).map((notification, index) => (
+              <li
+                key={index}
+                className="py-3 px-5 border rounded-lg border-gray-300 text-gray-800 font-medium grid grid-cols-2 md:grid-cols-3 transition-colors duration-200 hover:bg-gray-100 group"
+              >
+                <span className="text-sm">{notification.message}</span>
+                <div className="items-center hidden md:flex">
+                  <LuCircleUserRound size={22} />
+                  <span className="ml-3 text-sm">System</span>
+                </div>
+                <span className="text-sm text-gray-600 text-right">
+                  {new Date(notification.createdAt).toDateString()}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
       </div>
   );
