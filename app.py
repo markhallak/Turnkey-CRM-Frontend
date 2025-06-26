@@ -1,18 +1,19 @@
+import asyncio
+import hmac
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-import hmac
 from hashlib import sha256
 from typing import Optional
 from uuid import UUID
 
-from asyncpg import create_pool, Pool, Connection
-from fastapi import FastAPI, HTTPException, Query, Body, Request, Depends, status
-import casbin
-import asyncio
+import casbin_async_sqlalchemy_adapter
 import sqlalchemy
-from databases import Database
+from asyncpg import create_pool, Pool, Connection
+from casbin import AsyncEnforcer
 from casbin_redis_watcher import RedisWatcher
-from casbin_adapter import CasbinAdapter
+from databases import Database
+from fastapi import FastAPI, HTTPException, Query, Body, Request, Depends, status
+
 from constants import DATABASE_URL
 from util import isUUIDv4, createMagicLink, generateJwt, getUserRoles
 
@@ -30,8 +31,8 @@ casbin_table = sqlalchemy.Table(
     sqlalchemy.Column("extra", sqlalchemy.String(255)),
 )
 
-adapter = CasbinAdapter(database, casbin_table)
-enforcer = casbin.Enforcer("model.conf", adapter)
+adapter = casbin_async_sqlalchemy_adapter.Adapter(DATABASE_URL)
+enforcer = AsyncEnforcer("model.conf", adapter)
 enforcer.enable_auto_save(True)
 enforcer.enable_log(True)
 watcher = RedisWatcher("redis://localhost:6379")
