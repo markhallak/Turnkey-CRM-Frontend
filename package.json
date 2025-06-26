@@ -59,7 +59,7 @@
     "tailwindcss-animate": "^1.0.7",
     "xlsx": "^0.18.5",
     "zod": "^3.24.2",
-    "argon2-browser": "^1.19.0",
+    "argon2-browser": "^1.18.0",
     "tweetnacl": "^1.0.3"
   },
   "devDependencies": {
