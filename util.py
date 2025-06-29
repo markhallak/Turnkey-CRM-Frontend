@@ -79,35 +79,3 @@ def generateJwt(payload: dict, secret: str, expiresIn: int) -> str:
     return ".".join(segments)
 
 
-# TODO: Make it an endpoint
-async def fetch_project_assessments(
-        db_pool: Pool,
-        project_id: str
-) -> Optional[Record]:
-    """
-    Fetch the “Visit Notes”, “Planned Resolution”, and “Material/Parts Needed”
-    fields for a given project.id. Returns an Record containing:
-      - project_id
-      - visit_notes
-      - planned_resolution
-      - material_parts_needed
-    or None if the project doesn’t exist or is_deleted = TRUE.
-    """
-
-    sql = """
-    SELECT
-      p.id                     AS project_id,
-      p.visit_notes,
-      p.planned_resolution,
-      p.material_parts_needed
-    FROM project p
-    WHERE
-      p.id          = $1
-      AND p.is_deleted = FALSE;
-    """
-
-    start = perf_counter()
-    async with db_pool.acquire() as conn:
-        rec = await conn.fetchrow(sql, project_id)
-    dt = perf_counter() - start
-    return rec

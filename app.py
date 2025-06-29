@@ -2,10 +2,11 @@ import asyncio
 import hmac
 import os
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from hashlib import sha256
 from typing import Optional
-from uuid import UUID
+from uuid import UUID, uuid4
+import random
 
 import uvicorn
 from asyncpg import create_pool, Pool, Connection
@@ -250,6 +251,30 @@ async def getProfileDetails(
         "first_name": row["first_name"],
         "hex_color": row["hex_color"],
     }
+
+
+@app.get("/project-assessments/{project_id}")
+async def getProjectAssessments(project_id: str, db_pool: Pool = Depends(get_db_pool)):
+    if not await isUUIDv4(project_id):
+        raise HTTPException(status_code=400, detail="Invalid project id")
+
+    sql = """
+    SELECT
+      p.id                     AS project_id,
+      p.visit_notes,
+      p.planned_resolution,
+      p.material_parts_needed
+    FROM project p
+    WHERE
+      p.id          = $1
+      AND p.is_deleted = FALSE;
+    """
+
+    async with db_pool.acquire() as conn:
+        rec = await conn.fetchrow(sql, UUID(project_id))
+    if not rec:
+        raise HTTPException(status_code=404, detail="Not found")
+    return dict(rec)
 
 
 ################################################################################
@@ -2000,20 +2025,91 @@ async def inviteUser(
 ):
     email_to_invite = payload.get("emailToInvite")
     account_type = payload.get("accountType")
+    first_name = payload.get("firstName", "")
+    last_name = payload.get("lastName", "")
 
     if not email_to_invite:
         raise HTTPException(status_code=400, detail="Invalid email")
     if not account_type:
         raise HTTPException(status_code=400, detail="Invalid account type")
 
-    await createMagicLink(
-        conn,
-        server_secret=SECRET_KEY,
-        purpose="signup",
-        recipientEmail=email_to_invite
+    hex_color = f"#{random.randint(0, 0xFFFFFF):06x}"
+    row = await conn.fetchrow(
+        "INSERT INTO \"user\" (email, first_name, last_name, hex_color, is_active, is_client) "
+        "VALUES ($1,$2,$3,$4,FALSE,$5) RETURNING id",
+        email_to_invite,
+        first_name,
+        last_name,
+        hex_color,
+        account_type.startswith("Client")
+    )
+    user_id = row["id"]
+
+    uuid_val = uuid4()
+    sig = hmac.new(SECRET_KEY.encode("utf-8"), str(uuid_val).encode("utf-8"), sha256).hexdigest()
+    expires = datetime.now(timezone.utc) + timedelta(hours=24)
+    await conn.execute(
+        "INSERT INTO magic_link (uuid, user_id, sig, expires_at, consumed, purpose, send_to) "
+        "VALUES ($1,$2,$3,$4,FALSE,'invite',$5)",
+        uuid_val,
+        user_id,
+        sig,
+        expires,
+        email_to_invite,
+    )
+
+    await conn.execute(
+        "INSERT INTO casbin_rule (ptype, subject, domain, object, action) VALUES ('g',$1,$2,'*','')",
+        email_to_invite,
+        account_type.replace(' ', '_').lower()
     )
 
     return {"status": "link sent"}
+
+
+@app.put("/update-user")
+async def updateUser(payload: dict = Body(), conn: Connection = Depends(get_conn)):
+    user_id = payload.get("userId")
+    if not user_id or not await isUUIDv4(user_id):
+        raise HTTPException(status_code=400, detail="Invalid userId")
+
+    email = payload.get("email")
+    first_name = payload.get("firstName")
+    last_name = payload.get("lastName")
+    role = payload.get("role")
+
+    updates = []
+    params = []
+    if email:
+        updates.append(f"email=${len(params)+1}")
+        params.append(email)
+    if first_name:
+        updates.append(f"first_name=${len(params)+1}")
+        params.append(first_name)
+    if last_name:
+        updates.append(f"last_name=${len(params)+1}")
+        params.append(last_name)
+
+    if updates:
+        await conn.execute(
+            f"UPDATE \"user\" SET {', '.join(updates)} WHERE id=${len(params)+1}",
+            *params,
+            UUID(user_id),
+        )
+
+    if role:
+        subj = email if email else await conn.fetchval('SELECT email FROM "user" WHERE id=$1', UUID(user_id))
+        await conn.execute(
+            "DELETE FROM casbin_rule WHERE ptype='g' AND subject=$1",
+            subj,
+        )
+        await conn.execute(
+            "INSERT INTO casbin_rule (ptype, subject, domain, object, action) VALUES ('g',$1,$2,'*','')",
+            subj,
+            role.replace(' ', '_').lower(),
+        )
+
+    return {"status": "updated"}
 
 
 @app.post("/auth/login")

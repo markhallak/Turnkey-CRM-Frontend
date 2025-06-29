@@ -74,7 +74,7 @@ const { notifications, setChildLoading } = useWrapperData();
         <span className="text-2xl title border-b">Latest Updates</span>
 
         {notifications.slice(0, 4).length === 0 ? (
-          <p className="mt-5 text-sm text-gray-500">No updates</p>
+          <p className="mt-5 text-sm text-gray-500 text-center">No updates</p>
         ) : (
           <ul className="mt-5 space-y-1">
             {notifications.slice(0, 4).map((notification, index) => (

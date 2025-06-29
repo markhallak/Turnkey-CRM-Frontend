@@ -27,6 +27,7 @@ interface IProps {
 
 const Header: FC<IProps> = ({ title }) => {
   const [searchTerm, setSearchTerm] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [projectResults, setProjectResults] = useState<
     {
@@ -100,7 +101,7 @@ const Header: FC<IProps> = ({ title }) => {
   };
 
   useEffect(() => {
-    if (searchTerm === "") {
+    if (searchTerm.length < 3) {
       setIsLoading(false);
       setProjectResults([]);
       setClientResults([]);
@@ -191,7 +192,7 @@ const Header: FC<IProps> = ({ title }) => {
             </Breadcrumb>
           </div>
           <div className="flex items-center space-x-4">
-            <Dialog>
+            <Dialog open={searchOpen} onOpenChange={(o) => { setSearchOpen(o); if (!o) setSearchTerm(""); }}>
               <DialogTrigger asChild>
                 <Search
                   size={22}
@@ -376,7 +377,7 @@ const Header: FC<IProps> = ({ title }) => {
                 </div>
                 <ScrollArea className="overflow-y-auto max-h-60">
                   {notifs.length === 0 ? (
-                    <div className="p-4 text-sm text-gray-500">No notifications</div>
+                    <div className="p-4 text-sm text-gray-500 text-center">No notifications</div>
                   ) : (
                     notifs.map((n) => (
                       <div
