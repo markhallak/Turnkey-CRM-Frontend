@@ -140,7 +140,7 @@ function GenericTable({ config }: { config: TableConfig }) {
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => handleInvite(row.original.id)}
+              onClick={() => handleInvite(row.original.email, row.original.user_type)}
             >
               Invite
             </Button>
@@ -171,6 +171,9 @@ function GenericTable({ config }: { config: TableConfig }) {
     } else {
       const newItem = { ...form, id: Date.now().toString() };
       setData([...data, newItem]);
+      if (config.name === "User") {
+        handleInvite(form.email, form.user_type);
+      }
     }
     setIsNewOpen(false);
     setIsEditOpen(false);
@@ -181,12 +184,12 @@ function GenericTable({ config }: { config: TableConfig }) {
     setIsDeleteOpen(false);
   };
 
-  const handleInvite = async (userId: string) => {
+  const handleInvite = async (email: string, accountType: string) => {
     try {
       await fetch(`${serverUrl}/auth/invite`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({ emailToInvite: email, accountType }),
       });
     } catch (err) {
       console.error(err);
@@ -307,12 +310,7 @@ function GenericTable({ config }: { config: TableConfig }) {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            {config.fields
-              .filter(
-                (field) =>
-                  field.key !== "client_type" || form.user_type === "Client"
-              )
-              .map((field) => (
+            {config.fields.map((field) => (
                 <div key={field.key}>
                   <label className="block text-sm font-medium mb-1">
                     {field.header}
@@ -471,15 +469,6 @@ export default function AdminPage() {
       ],
     },
     {
-      name: "User Type",
-      fields: [{ key: "text", header: "Text" }],
-      data: [
-        { id: "1", text: "Admin" },
-        { id: "2", text: "Employee" },
-        { id: "3", text: "Client" },
-      ],
-    },
-    {
       name: "State",
       fields: [{ key: "text", header: "Text" }],
       data: [
@@ -510,11 +499,13 @@ export default function AdminPage() {
       ],
     },
     {
-      name: "Client Type",
-      fields: [{ key: "value", header: "Value" }],
+      name: "Employee Account Manager - Client Relations",
+      fields: [
+        { key: "account_manager", header: "Account Manager" },
+        { key: "client", header: "Client" },
+      ],
       data: [
-        { id: "1", value: "Corporate" },
-        { id: "2", value: "Individual" },
+        { id: "1", account_manager: "bob@example.com", client: "Acme" },
       ],
     },
     {
@@ -541,13 +532,12 @@ export default function AdminPage() {
     },
   ];
 
-  const userTypeOptions =
-    baseConfigs
-      .find((c) => c.name === "User Type")
-      ?.data.map((item) => item.text) || [];
-  const clientTypeOptions = baseConfigs
-    .find((c) => c.name === "Client Type")!
-    .data.map((item) => item.value);
+  const userTypeOptions = [
+    "Employee Admin",
+    "Employee Account Manager",
+    "Client Admin",
+    "Client Technician",
+  ];
 
   const configs = baseConfigs.map((cfg) => {
     if (cfg.name === "User") {
@@ -561,17 +551,10 @@ export default function AdminPage() {
             isSelect: true,
             options: userTypeOptions,
           },
-          {
-            key: "client_type",
-            header: "Client Type",
-            isSelect: true,
-            options: clientTypeOptions,
-          },
         ],
         data: cfg.data.map((item) => ({
           ...item,
           user_type: userTypeOptions[0],
-          client_type: clientTypeOptions[0],
         })),
       };
     }
