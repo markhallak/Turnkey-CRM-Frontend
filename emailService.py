@@ -87,7 +87,7 @@ async def handle_magic_link(connection, pid, channel, payload):
     purpose = data.get("purpose")
 
     if purpose == "signup":
-        subject = "Your Magic Login Link"
+        subject = "Create Your Account"
 
         if data.get("uuid") and data.get("sig"):
             frontend_base = os.getenv("FRONTEND_BASE_URL", "http://localhost:8000")
@@ -170,10 +170,10 @@ async def handle_magic_link(connection, pid, channel, payload):
                         <!-- Body -->
                         <tr>
                           <td class="content">
-                            <p>Hello,</p>
-                            <p>Click the button below to securely log in to your account. This link will expire at <strong>{data.get('expires_at')}</strong>.</p>
+                            <p>Dear User,</p>
+                            <p>Click the button below to create your account. This link will expire within <strong>24 hours</strong>.</p>
                             <div class="button-container">
-                              <a href="{link}" target="_blank" rel="noopener noreferrer" class="btn">Log In Now</a>
+                              <a href="{link}" target="_blank" rel="noopener noreferrer" class="btn">Sign up Now</a>
                             </div>
                             <p>If the button doesn’t work, copy and paste the following URL into your browser:</p>
                             <p><a href="{link}" target="_blank" rel="noopener noreferrer" style="color:#4a90e2; word-break:break-all;">{link}</a></p>

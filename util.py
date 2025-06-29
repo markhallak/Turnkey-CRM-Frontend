@@ -21,26 +21,6 @@ async def isUUIDv4(u: str) -> bool:
     return str(val) == u
 
 
-async def hasUnexpiredMagicLink(
-        db_pool,
-        user_id: UUID,
-        purpose: str
-) -> bool:
-    sql = """
-        SELECT 1
-        FROM magic_link
-        WHERE
-          user_id    = $1
-          AND purpose = $2
-          AND consumed = FALSE
-          AND expires_at > now()
-        LIMIT 1;
-    """
-    async with db_pool.acquire() as conn:
-        row = await conn.fetchrow(sql, user_id, purpose)
-    return bool(row)
-
-
 async def createMagicLink(
         conn: Connection,
         server_secret: str,

@@ -310,6 +310,7 @@ CREATE TABLE IF NOT EXISTS magic_link (
   expires_at     TIMESTAMPTZ NOT NULL,
   consumed       BOOLEAN     NOT NULL DEFAULT FALSE,
   purpose        VARCHAR(32) NOT NULL,
+  is_sent        BOOLEAN     NOT NULL DEFAULT FALSE,
   send_to         VARCHAR(255) NOT NULL
 );
 """
