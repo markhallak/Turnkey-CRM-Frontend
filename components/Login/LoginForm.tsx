@@ -8,7 +8,10 @@ import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/router";
 import { serverUrl } from "@/lib/config";
-import Image from 'next/image';
+import Image from "next/image";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import argon2 from "argon2-browser";
+import { encryptedPost, getClientPriv, storeClientPriv } from "@/lib/apiClient";
 
 export default function LoginForm({
   className,
@@ -17,6 +20,9 @@ export default function LoginForm({
   const [email, setEmail] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState("");
+  const [showRecovery, setShowRecovery] = React.useState(false);
+  const [phrase, setPhrase] = React.useState("");
+  const [recoverLoading, setRecoverLoading] = React.useState(false);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -32,23 +38,56 @@ export default function LoginForm({
     setError(result.success ? "" : result.error.errors[0].message);
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (error || !email) return;
+  const sendLogin = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${serverUrl}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-username": email },
-        body: JSON.stringify({ email }),
-      });
-      if (!res.ok) throw new Error("request failed");
+      await encryptedPost("/auth/login", { email });
       toast({ description: "Check your email for a login link." });
-    } catch {
-      toast({ description: "Failed to send login link.", variant: "destructive" });
+    } catch (err: any) {
+      const msg = typeof err.message === "string" ? err.message : "";
+      if (msg.includes("blacklisted")) {
+        toast({ description: "Account is blacklisted.", variant: "destructive" });
+      } else {
+        toast({ description: "Failed to send login link.", variant: "destructive" });
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRecover = async () => {
+    if (!phrase) return;
+    setRecoverLoading(true);
+    try {
+      const res = await fetch(
+        `${serverUrl}/auth/recovery-params?email=${encodeURIComponent(email)}`
+      );
+      if (!res.ok) throw new Error("params");
+      const j = await res.json();
+      const salt = Buffer.from(j.salt, "base64");
+      const params = JSON.parse(Buffer.from(j.kdfParams, "base64").toString());
+      const { hash } = await argon2.hash({ pass: phrase, salt, ...params });
+      storeClientPriv(hash);
+      await encryptedPost("/auth/update-client-key", { userId: j.userId });
+      setShowRecovery(false);
+      setPhrase("");
+      await sendLogin();
+    } catch {
+      toast({ description: "Recovery failed", variant: "destructive" });
+    } finally {
+      setRecoverLoading(false);
+    }
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (error || !email) return;
+    const priv = getClientPriv();
+    if (!priv) {
+      setShowRecovery(true);
+      return;
+    }
+    await sendLogin();
   };
 
   const isDisabled = !!error || !email || loading;
@@ -98,6 +137,20 @@ export default function LoginForm({
           </div>
         </CardContent>
       </Card>
+      <Popover open={showRecovery} onOpenChange={setShowRecovery}>
+        <PopoverTrigger asChild>
+          <span />
+        </PopoverTrigger>
+        <PopoverContent className="space-y-4">
+          <div className="grid gap-2">
+            <Label htmlFor="rec">Recovery Phrase</Label>
+            <Input id="rec" value={phrase} onChange={(e) => setPhrase(e.target.value)} />
+          </div>
+          <Button onClick={handleRecover} disabled={recoverLoading} className="w-full">
+            {recoverLoading ? "Restoring..." : "Restore"}
+          </Button>
+        </PopoverContent>
+      </Popover>
       <div className="text-balance text-center text-xs text-muted-foreground [&_a]:underline [&_a]:underline-offset-4 hover:[&_a]:text-primary">
         By clicking continue, you agree to our <a href="#">Terms of Service</a>{" "}
         and <a href="#">Privacy Policy</a>.

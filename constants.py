@@ -10,6 +10,7 @@ SECRET_KEY = "dev-secret"
 
 # URL of the local KMS service
 KMS_URL = os.getenv("KMS_URL", "http://localhost:9000")
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 INITIAL_POLICIES = [
     ("employee_admin",          "*", "*", "*"),
