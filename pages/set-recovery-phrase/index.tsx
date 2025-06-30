@@ -19,25 +19,33 @@ export default function SetRecoveryPhrasePage() {
     const verifyAndSetup = async () => {
       if (!token) return;
 
-      // Try existing publicKey cookie, else fetch it
-      let pem = document.cookie
-        .split("; ")
-        .find((c) => c.startsWith("publicKey="))
-        ?.slice("publicKey=".length);
-      if (pem) {
-        pem = decodeURIComponent(pem);
-      }
+      const RSA_COOKIE = "rsaPublicKey";
+
+let pem = (() => {
+  const match = document.cookie
+    .split("; ")
+    .find((c) => c.startsWith(`${RSA_COOKIE}=`));
+
+  if (!match) return undefined;
+
+  const value = decodeURIComponent(match.slice(RSA_COOKIE.length + 1));
+  // guard: accept only real PEMs
+  return value.includes("-----BEGIN PUBLIC KEY-----") ? value : undefined;
+})();
 
       try {
         // If no cookie, fetch from server
         if (!pem) {
-          const res = await fetch(`${serverUrl}/auth/public-key`);
-  if (!res.ok) throw new Error(`public key fetch failed: ${res.status}`);
-  const { public_key: fetchedPem } = await res.json();
-  pem = fetchedPem;                   // already PEM-formatted
-  document.cookie = `publicKey=${encodeURIComponent(pem)}; path=/`;
-        }
+  const res = await fetch(`${serverUrl}/auth/public-key`);
+  if (!res.ok) throw new Error("public key fetch failed");
+  pem = (await res.json()).public_key;
+  // note new cookie name + explicit max-age
+  document.cookie = `${RSA_COOKIE}=${encodeURIComponent(
+    pem
+  )}; path=/; max-age=0; SameSite=Lax`;
+}
 
+        console.log("PEM: ", pem);
         // Verify JWT
 const imported = await importSPKI(pem, "RS256");
         const { payload } = await jwtVerify(token, imported);
