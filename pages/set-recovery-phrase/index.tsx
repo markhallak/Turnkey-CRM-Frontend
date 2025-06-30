@@ -1,3 +1,4 @@
+// pages/set-recovery-phrase/index.tsx
 import SetupRecoveryForm from "@/components/Login/SetupRecoveryForm";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
@@ -9,67 +10,85 @@ export default function SetRecoveryPhrasePage() {
   const router = useRouter();
   const { toast } = useToast();
   const { token } = router.query as { token?: string };
-  const [info, setInfo] = useState<{ userId: string; username: string } | null>(null);
+  const [info, setInfo] = useState<{
+    userId: string;
+    username: string;
+  } | null>(null);
 
   useEffect(() => {
-    const verify = async () => {
+    const verifyAndSetup = async () => {
       if (!token) return;
-      const cookieKey = document.cookie
+
+      // Try existing publicKey cookie, else fetch it
+      let pubKey = document.cookie
         .split("; ")
-        .find((c) => c.startsWith("publicKey="));
-      let pub = cookieKey ? decodeURIComponent(cookieKey.split("=")[1]) : null;
-      const attempt = async (key: string | null) => {
-        try {
-          if (!key) throw new Error();
-          const imported = await importSPKI(key, "RS256");
-          const { payload } = await jwtVerify(token, imported);
-          if (payload.exp && payload.exp * 1000 < Date.now()) {
-            toast({ description: "Signup link expired.", variant: "destructive" });
-            return;
-          }
-          const res = await fetch(`${serverUrl}/auth/set-recovery-phrase`, {
+        .find((c) => c.startsWith("publicKey="))
+        ?.split("=")[1];
+      if (pubKey) {
+        pubKey = decodeURIComponent(pubKey);
+      }
+
+      try {
+        // If no cookie, fetch from server
+        if (!pubKey) {
+          const keyRes = await fetch(
+            `${serverUrl}/auth/ed25519-public-key`
+          );
+          if (!keyRes.ok) throw new Error();
+          const { public_key } = await keyRes.json();
+          pubKey = public_key;
+          document.cookie = `publicKey=${encodeURIComponent(
+            public_key
+          )}; path=/`;
+        }
+
+        // Verify JWT
+        const imported = await importSPKI(pubKey, "RS256");
+        const { payload } = await jwtVerify(token, imported);
+        if (payload.exp && payload.exp * 1000 < Date.now()) {
+          toast({
+            description: "Signup link expired.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Call setup-recovery
+        const res = await fetch(
+          `${serverUrl}/auth/setup-recovery`,
+          {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ token }),
-          });
-          if (!res.ok) throw new Error();
-          const d = await res.json();
-          setInfo({ userId: d.userId, username: d.username });
-        } catch {
-          const r = await fetch(`${serverUrl}/auth/public-key`);
-          const j = await r.json();
-          document.cookie = `publicKey=${encodeURIComponent(j.public_key)}; path=/`;
-          try {
-            const imported = await importSPKI(j.public_key, "RS256");
-            const { payload } = await jwtVerify(token, imported);
-            if (payload.exp && payload.exp * 1000 < Date.now()) {
-              toast({ description: "Signup link expired.", variant: "destructive" });
-              return;
-            }
-            const res2 = await fetch(`${serverUrl}/auth/set-recovery-phrase`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ token }),
-            });
-            if (!res2.ok) throw new Error();
-            const d2 = await res2.json();
-            setInfo({ userId: d2.userId, username: d2.username });
-          } catch {
-            toast({ description: "Invalid signup link.", variant: "destructive" });
           }
-        }
-      };
-      await attempt(pub);
+        );
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        setInfo({
+          userId: data.userId,
+          username: data.username,
+        });
+      } catch {
+        toast({
+          description: "Invalid or expired signup link.",
+          variant: "destructive",
+        });
+      }
     };
-    verify();
+
+    verifyAndSetup();
   }, [token, toast]);
 
   if (!token) return <p className="p-4">Missing token</p>;
-  if (!info) return <p className="p-4">Verifying link...</p>;
+  if (!info) return <p className="p-4">Verifying link…</p>;
+
   return (
-    <div className="flex min-h-svh flex-col items-center justify-center bg-muted p-6 md:p-10">
-      <div className="w-full max-w-sm md:max-w-3xl">
-        <SetupRecoveryForm userId={info.userId} username={info.username} />
+    <div className="flex min-h-screen flex-col items-center justify-center bg-muted p-6 md:p-10">
+      <div className="w-full max-w-sm md:max-w-md">
+        <SetupRecoveryForm
+          userId={info.userId}
+          username={info.username}
+        />
       </div>
     </div>
   );

@@ -1,24 +1,33 @@
-import path from "path";
+// next.config.ts
 import { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   eslint: {
-    // Allows production builds to complete even if ESLint errors exist:
     ignoreDuringBuilds: true,
   },
   typescript: {
-    // WARNING: Build will succeed despite any TS errors
     ignoreBuildErrors: true,
   },
   images: {
-    domains: ["images.squarespace-cdn.com"], // Add your allowed image domain here
+    domains: ["images.squarespace-cdn.com"],
   },
-  webpack(config) {
-    config.resolve.alias = {
-      ...(config.resolve.alias || {}),
-      // Redirect all imports from "next/link" to your custom LinkWrapper
-    };
+  webpack: (config, { isServer }) => {
+    // Inline any .wasm as base64 (for argon2-browser or other WASM modules)
+    config.module.rules.push({
+      test: /\.wasm$/,
+      loader: "base64-loader",
+      type: "javascript/auto",
+    });
+
+    // Don’t bundle Node-only modules into client
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+      };
+    }
+
     return config;
   },
 };
