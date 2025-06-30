@@ -362,8 +362,8 @@ CREATE TABLE IF NOT EXISTS user_key (
 );
 """
 
-JWT_TOKENS = """
-CREATE TABLE IF NOT EXISTS jwt_tokens (
+JWT_TOKEN = """
+CREATE TABLE IF NOT EXISTS jwt_token (
   jti UUID PRIMARY KEY,
   user_email VARCHAR(255) NOT NULL,
   expires_at TIMESTAMPTZ NOT NULL,
@@ -910,7 +910,7 @@ async def create_tables():
             ("magic_link_listen_notify", MAGIC_LINK_LISTEN_NOTIFY),
             ("password", PASSWORD),
             ("user_key", USER_KEY),
-            ("jwt_tokens", JWT_TOKENS),
+            ("jwt_token", JWT_TOKEN),
             ("insurance", INSURANCE),
             ("notification", NOTIFICATION),
             ("notification_listen_notify", NOTIFICATION_LISTEN_NOTIFY),
@@ -935,7 +935,7 @@ async def create_tables():
                   is_active,
                   is_client
                 ) VALUES (
-                  'markhallak@outlook.com',
+                  'test@gmail.com',
                   'Mark',
                   'Hallak',
                   '#FF0000',
@@ -969,7 +969,7 @@ async def create_tables():
                     ("p", "client_technician", "*", "/projects/view/*", "read_without_financial"),
                     ("p", "client_technician", "*", "/get-messages", "*"),
 
-                    ("g", "markhallak@outlook.com", "employee_admin", "*", "")
+                    ("g", "test@gmail.com", "employee_admin", "*", "")
                 ]
             )
 

@@ -20,9 +20,9 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import Table, Column, Integer, String, MetaData
 
 from CasbinAdapter import CasbinAdapter
-from constants import ASYNCPG_URL, SECRET_KEY, REDIS_URL
+from constants import ASYNCPG_URL, SECRET_KEY, REDIS_URL, KMS_URL
 from redis.asyncio import Redis
-from util import isUUIDv4, createMagicLink, decodeJwtRs256
+from util import isUUIDv4, createMagicLink, decodeJwtRs256, generateJwtRs256
 from argon2.low_level import hash_secret_raw, Type
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 import nacl.bindings
@@ -64,6 +64,7 @@ async def authorize(request: Request, user: SimpleUser = Depends(getCurrentUser)
     # if user.setup_done and not user.onboarding_done and not path.startswith("/auth") and path != "/onboarding":
     #     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Finish onboarding")
 
+    print("USER: ", user)
     sub = str(user.email)
     domain = "*"
     obj = path
@@ -137,7 +138,7 @@ async def lifespan(app: FastAPI):
     redis = Redis.from_url(REDIS_URL, decode_responses=True)
     app.state.redis = redis
     async with app.state.db_pool.acquire() as c:
-        rows = await c.fetch("SELECT jti FROM jwt_tokens WHERE revoked=FALSE AND expires_at>NOW()")
+        rows = await c.fetch("SELECT jti FROM jwt_token WHERE revoked=FALSE AND expires_at>NOW()")
         if rows:
             await redis.sadd("active_jtis", *[r["jti"] for r in rows])
         rows = await c.fetch("SELECT email FROM \"user\" WHERE is_blacklisted=TRUE")
@@ -2388,7 +2389,7 @@ async def setupRecovery(payload: dict = Body(), request: Request = None,
     jti = str(uuid4())
     exp_dt = datetime.now(timezone.utc) + timedelta(minutes=5)
     await conn.execute(
-        "INSERT INTO jwt_tokens (jti, user_email, expires_at, revoked) VALUES ($1,$2,$3,FALSE)",
+        "INSERT INTO jwt_token (jti, user_email, expires_at, revoked) VALUES ($1,$2,$3,FALSE)",
         jti,
         user_email,
         exp_dt,
@@ -2485,7 +2486,7 @@ async def revokeToken(request: Request, conn: Connection = Depends(get_conn)):
     jti = data.get("jti")
     if not jti:
         raise HTTPException(status_code=400, detail="bad token")
-    await conn.execute("UPDATE jwt_tokens SET revoked=TRUE WHERE jti=$1", jti)
+    await conn.execute("UPDATE jwt_token SET revoked=TRUE WHERE jti=$1", jti)
     redis = request.app.state.redis
     await redis.srem("active_jtis", jti)
     await redis.publish("jwt_updates", f"remove:{jti}")
