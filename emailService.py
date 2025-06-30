@@ -91,9 +91,9 @@ async def handle_magic_link(connection, pid, channel, payload):
     if purpose == "signup":
         subject = "Create Your Account"
 
-        if data.get("uuid") and data.get("sig"):
+        if data.get("token"):
             frontend_base = os.getenv("FRONTEND_BASE_URL", "http://localhost:8000")
-            link = f"{frontend_base}/auth/sign-up?uuid={data['uuid']}&sig={data['sig']}"
+            link = f"{frontend_base}/set-recovery-phrase?token={data['token']}"
 
             htmlBody = f"""
             <!DOCTYPE html>

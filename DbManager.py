@@ -121,7 +121,7 @@ CREATE TABLE IF NOT EXISTS "user" (
   client_id  UUID         REFERENCES client(id)    ON UPDATE CASCADE ON DELETE RESTRICT,
   created_at TIMESTAMPTZ  NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ  NOT NULL DEFAULT now(),
-  setup_recovery_done BOOLEAN NOT NULL DEFAULT FALSE,
+  has_set_recovery_phrase BOOLEAN NOT NULL DEFAULT FALSE,
   onboarding_done BOOLEAN NOT NULL DEFAULT FALSE,
   is_active  BOOLEAN      NOT NULL DEFAULT TRUE,
   is_client  BOOLEAN      NOT NULL DEFAULT FALSE,
@@ -306,12 +306,12 @@ MAGIC_LINK = """
 CREATE TABLE IF NOT EXISTS magic_link (
   uuid           UUID        PRIMARY KEY,
   user_id        UUID        REFERENCES "user"(id),
-  sig            VARCHAR(255) NOT NULL,
+  token          TEXT        NOT NULL,
   expires_at     TIMESTAMPTZ NOT NULL,
   consumed       BOOLEAN     NOT NULL DEFAULT FALSE,
   purpose        VARCHAR(32) NOT NULL,
   is_sent        BOOLEAN     NOT NULL DEFAULT FALSE,
-  send_to         VARCHAR(255) NOT NULL
+  send_to        VARCHAR(255) NOT NULL
 );
 """
 

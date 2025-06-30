@@ -22,7 +22,7 @@ export default function SignUpPage() {
         if (!res.ok) throw new Error("failed");
         const d = await res.json();
         router.replace(
-          `/auth/setup-recovery?userId=${d.userId}&username=${encodeURIComponent(
+          `/set-recovery-phrase?userId=${d.userId}&username=${encodeURIComponent(
             d.username
           )}`
         );

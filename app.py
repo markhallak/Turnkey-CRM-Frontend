@@ -1,9 +1,9 @@
+import httpx
 import asyncio
 import hmac
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
-from hashlib import sha256
 from typing import Optional
 from uuid import UUID, uuid4
 import random
@@ -19,7 +19,7 @@ from sqlalchemy import Table, Column, Integer, String, MetaData
 
 from CasbinAdapter import CasbinAdapter
 from constants import ASYNCPG_URL, SECRET_KEY
-from util import isUUIDv4, createMagicLink, generateJwt
+from util import isUUIDv4, createMagicLink, decodeJwtRs256
 
 
 class SimpleUser:
@@ -36,11 +36,11 @@ async def getCurrentUser(request: Request) -> SimpleUser | None:
     if email:
         async with request.app.state.db_pool.acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT id, setup_recovery_done, onboarding_done FROM \"user\" WHERE email=$1",
+                "SELECT id, has_set_recovery_phrase, onboarding_done FROM \"user\" WHERE email=$1",
                 email,
             )
         if row:
-            return SimpleUser(row["id"], email, row["setup_recovery_done"], row["onboarding_done"])
+            return SimpleUser(row["id"], email, row["has_set_recovery_phrase"], row["onboarding_done"])
     return None
 
 
@@ -52,7 +52,7 @@ async def authorize(request: Request, user: SimpleUser = Depends(getCurrentUser)
                     enforcer: SyncedEnforcer = Depends(getEnforcer)):
     path = request.url.path
     #
-    # if not user.setup_done and not path.startswith("/auth") and path != "/setup-recovery":
+    # if not user.setup_done and not path.startswith("/auth") and path != "/set-recovery-phrase":
     #     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Finish setup recovery")
     # if user.setup_done and not user.onboarding_done and not path.startswith("/auth") and path != "/onboarding":
     #     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Finish onboarding")
@@ -106,6 +106,24 @@ async def lifespan(app: FastAPI):
     )
     print("DB pool created")
 
+    async with httpx.AsyncClient() as client:
+        privRes = await client.get(f"{KMS_URL}/private-key")
+        pubRes = await client.get(f"{KMS_URL}/public-key")
+    app.state.privateKey = privRes.json()["privateKey"]
+    app.state.publicKey = pubRes.json()["publicKey"]
+
+    async def refreshKeys():
+        while True:
+            await asyncio.sleep(21600)
+            async with httpx.AsyncClient() as c:
+                priv = await c.get(f"{KMS_URL}/private-key")
+                pub = await c.get(f"{KMS_URL}/public-key")
+            if priv.json()["privateKey"] != app.state.privateKey or pub.json()["publicKey"] != app.state.publicKey:
+                app.state.privateKey = priv.json()["privateKey"]
+                app.state.publicKey = pub.json()["publicKey"]
+
+    asyncio.create_task(refreshKeys())
+
     def _update(_msg: str):
         loop.call_soon_threadsafe(enforcer.load_policy)
 
@@ -132,6 +150,11 @@ def get_db_pool(request: Request) -> Pool:
 async def get_conn(db_pool: Pool = Depends(get_db_pool)):
     async with db_pool.acquire() as conn:
         yield conn
+
+
+@app.get("/auth/public-key")
+async def getPublicKeyEndpoint(request: Request):
+    return {"public_key": request.app.state.publicKey}
 
 
 async def uploadDocument(fileBlob: bytes) -> dict:
@@ -2045,17 +2068,13 @@ async def inviteUser(
     )
     user_id = row["id"]
 
-    uuid_val = uuid4()
-    sig = hmac.new(SECRET_KEY.encode("utf-8"), str(uuid_val).encode("utf-8"), sha256).hexdigest()
-    expires = datetime.now(timezone.utc) + timedelta(hours=24)
-    await conn.execute(
-        "INSERT INTO magic_link (uuid, user_id, sig, expires_at, consumed, purpose, send_to) "
-        "VALUES ($1,$2,$3,$4,FALSE,'invite',$5)",
-        uuid_val,
+    token = await createMagicLink(
+        conn,
         user_id,
-        sig,
-        expires,
-        email_to_invite,
+        request.app.state.privateKey,
+        purpose="invite",
+        recipientEmail=email_to_invite,
+        ttlHours=24,
     )
 
     await conn.execute(
@@ -2113,7 +2132,7 @@ async def updateUser(payload: dict = Body(), conn: Connection = Depends(get_conn
 
 
 @app.post("/auth/login")
-async def login(payload: dict = Body(), conn: Connection = Depends(get_conn),
+async def login(request: Request, payload: dict = Body(), conn: Connection = Depends(get_conn),
                 enforcer: SyncedEnforcer = Depends(getEnforcer)):
     email = payload.get("email")
     if not email:
@@ -2122,14 +2141,16 @@ async def login(payload: dict = Body(), conn: Connection = Depends(get_conn),
     if not row:
         raise HTTPException(status_code=404, detail="User not found")
     userId = row["id"]
-    uuidStr, sig = await createMagicLink(
+    token = await createMagicLink(
         conn,
-        SECRET_KEY,
+        userId,
+        request.app.state.privateKey,
         purpose="login",
+        recipientEmail=email,
         ttlHours=1,
     )
 
-    link = f"/auth/sign-up?u={uuidStr}&s={sig}"
+    link = f"/set-recovery-phrase?token={token}"
     await conn.execute(
         "INSERT INTO notification (triggered_by_category, triggered_by_id, content) VALUES ($1,$2,$3)",
         "auth",
@@ -2140,46 +2161,35 @@ async def login(payload: dict = Body(), conn: Connection = Depends(get_conn),
     return {"status": "link sent"}
 
 
-@app.post("/auth/sign-up")
-async def signUp(u: str = Query(...), s: str = Query(...), conn: Connection = Depends(get_conn),
-                 enforcer: SyncedEnforcer = Depends(getEnforcer)):
-    if not isUUIDv4(u):
-        raise HTTPException(status_code=400, detail="Invalid uuid")
 
-    row = await conn.fetchrow(
-        "SELECT m.user_id, m.sig, m.expires_at, m.consumed, u.email FROM magic_link m JOIN \"user\" u ON m.user_id=u.id WHERE m.uuid=$1 AND m.purpose='invite'",
-        UUID(u),
-    )
-
-    if not row:
-        raise HTTPException(status_code=400, detail="Link not found")
-
-    computed = hmac.new(SECRET_KEY.encode("utf-8"), u.encode("utf-8"), sha256).hexdigest()
-
-    if not hmac.compare_digest(computed, s) or row["sig"] != s:
-        raise HTTPException(status_code=400, detail="Invalid signature")
-    if row["consumed"] or row["expires_at"] < datetime.now(timezone.utc):
-        raise HTTPException(status_code=400, detail="Link expired")
-
-    await conn.execute("UPDATE magic_link SET consumed=TRUE WHERE uuid=$1", UUID(u))
-
-    token = generateJwt({"userId": str(row["user_id"]), "scope": "set_recovery_phrase"}, SECRET_KEY, 900)
-    response = {"userId": str(row["user_id"]), "username": row["email"]}
-    res = JSONResponse(content=response)
-    res.set_cookie("token", token, httponly=True, secure=True, max_age=900)
-    return res
-
-
-@app.post("/auth/setup-recovery")
-async def setupRecovery(payload: dict = Body(), conn: Connection = Depends(get_conn),
-                        enforcer: SyncedEnforcer = Depends(getEnforcer)):
+@app.post("/auth/set-recovery-phrase")
+async def setRecoveryPhrase(payload: dict = Body(), request: Request = None,
+                            conn: Connection = Depends(get_conn),
+                            enforcer: SyncedEnforcer = Depends(getEnforcer)):
+    token = payload.get("token")
     userId = payload.get("userId")
     encSalt = payload.get("salt")
     encParams = payload.get("kdfParams")
     sigKey = payload.get("sigKey")
     encKey = payload.get("encKey")
 
-    if not userId or not isUUIDv4(userId):
+    if token and not userId:
+        data = decodeJwtRs256(token, request.app.state.publicKey)
+        uuid_str = data.get("uuid")
+        if not uuid_str or not await isUUIDv4(uuid_str):
+            raise HTTPException(status_code=400, detail="Invalid token")
+        row = await conn.fetchrow(
+            "SELECT m.user_id, m.token, m.expires_at, m.consumed, u.email FROM magic_link m JOIN \"user\" u ON m.user_id=u.id WHERE m.uuid=$1 AND m.purpose='invite'",
+            UUID(uuid_str),
+        )
+        if not row or row["token"] != token:
+            raise HTTPException(status_code=400, detail="Link not found")
+        if row["consumed"] or row["expires_at"] < datetime.now(timezone.utc):
+            raise HTTPException(status_code=400, detail="Link expired")
+        await conn.execute("UPDATE magic_link SET consumed=TRUE WHERE uuid=$1", UUID(uuid_str))
+        return {"userId": str(row["user_id"]), "username": row["email"]}
+
+    if not userId or not await isUUIDv4(userId):
         raise HTTPException(status_code=400, detail="Invalid userId")
 
     await conn.execute(
@@ -2200,13 +2210,27 @@ async def setupRecovery(payload: dict = Body(), conn: Connection = Depends(get_c
         encKey,
     )
     await conn.execute(
-        "UPDATE \"user\" SET is_active=TRUE, setup_recovery_done=TRUE WHERE id=$1",
+        "UPDATE \"user\" SET is_active=TRUE, has_set_recovery_phrase=TRUE WHERE id=$1",
         userId,
     )
 
-    access = generateJwt({"userId": userId}, SECRET_KEY, 900)
-    refresh = generateJwt({"userId": userId, "scope": "refresh"}, SECRET_KEY, 1209600)
-    return {"access": access, "refresh": refresh}
+    access_payload = {
+        "userId": userId,
+        "exp": datetime.now(timezone.utc) + timedelta(seconds=900),
+    }
+    refresh_payload = {
+        "userId": userId,
+        "scope": "refresh",
+        "exp": datetime.now(timezone.utc) + timedelta(seconds=1209600),
+    }
+    access = jwt.encode(access_payload, SECRET_KEY, algorithm="HS256")
+    refresh = jwt.encode(refresh_payload, SECRET_KEY, algorithm="HS256")
+    next_payload = {
+        "next_step": "/onboarding",
+        "exp": int((datetime.now(timezone.utc) + timedelta(minutes=5)).timestamp()),
+    }
+    nav_token = generateJwtRs256(next_payload, request.app.state.privateKey)
+    return {"access": access, "refresh": refresh, "token": nav_token}
 
 
 @app.post("/auth/complete-onboarding")
