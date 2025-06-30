@@ -1,6 +1,5 @@
 from typing import List, Dict
 from casbin_databases_adapter import DatabasesAdapter
-from util import handleErrors
 
 class CasbinFilter:
     ptype: List[str] = []
@@ -15,7 +14,6 @@ class CasbinAdapter(DatabasesAdapter):
     cols = ["ptype", "subject", "domain", "object", "action", "extra"]
 
     @staticmethod
-    @handleErrors
     def _policy_to_dict(p_type: str, rule: List[str]) -> Dict[str, str]:
         keys = ["subject", "domain", "object", "action", "extra"]
         row: Dict[str, str] = {"ptype": p_type}
@@ -24,7 +22,6 @@ class CasbinAdapter(DatabasesAdapter):
                 row[keys[i]] = value
         return row
 
-    @handleErrors
     async def remove_policy(self, sec, p_type, rule):
         query = self.table.delete().where(self.table.columns.ptype == p_type)
         keys = ["subject", "domain", "object", "action", "extra"]
@@ -33,7 +30,6 @@ class CasbinAdapter(DatabasesAdapter):
         result = await self.db.execute(query)
         return True if result > 0 else False
 
-    @handleErrors
     async def remove_filtered_policy(self, sec, p_type, field_index, *field_values):
         query = self.table.delete().where(self.table.columns.ptype == p_type)
         keys = ["subject", "domain", "object", "action", "extra"]

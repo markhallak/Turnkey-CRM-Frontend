@@ -3,7 +3,6 @@ import json
 import os
 import asyncio
 from uuid import UUID
-from util import handleErrors
 
 import asyncpg
 import requests
@@ -18,7 +17,6 @@ NOTIFICATION_CHANNEL = "new_notification_row"
 MAGIC_LINK_CHANNEL = "new_magic_link_row"
 
 
-@handleErrors
 async def send_email(subject: str, body: str, recipient: str):
     headers = {
         "accept": "application/json",
@@ -52,7 +50,6 @@ async def send_email(subject: str, body: str, recipient: str):
         return False
 
 
-@handleErrors
 async def handle_notification(conn, pid, channel, payload):
     """
     Handler for INSERTs on the notification table.
@@ -81,7 +78,6 @@ async def handle_notification(conn, pid, channel, payload):
     await send_email(subject, body, recipient)
 
 
-@handleErrors
 async def handle_magic_link(connection, pid, channel, payload):
     data = json.loads(payload)
     recipient = data.get("send_to")
@@ -96,7 +92,7 @@ async def handle_magic_link(connection, pid, channel, payload):
         subject = "Create Your Account"
 
         if data.get("token"):
-            frontend_base = os.getenv("FRONTEND_BASE_URL", "http://localhost:8000")
+            frontend_base = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000")
             link = f"{frontend_base}/set-recovery-phrase?token={data['token']}"
 
             htmlBody = f"""
@@ -214,7 +210,6 @@ async def handle_magic_link(connection, pid, channel, payload):
     print("For some reason, link wasn't sent")
 
 
-@handleErrors
 async def listener():
     # Single connection for listening to both channels
     conn = await asyncpg.connect(dsn=ASYNCPG_URL)
@@ -229,7 +224,7 @@ async def listener():
                 async with pool.acquire() as c:
                     rows = await c.fetch("SELECT * FROM magic_link WHERE is_sent=FALSE")
                     for r in rows:
-                        await handle_magic_link(c, 0, MAGIC_LINK_CHANNEL, json.dumps(dict(r)))
+                        await handle_magic_link(c, 0, MAGIC_LINK_CHANNEL, json.dumps(dict(r), default=str))
                 await asyncio.sleep(60)
         finally:
             await pool.close()

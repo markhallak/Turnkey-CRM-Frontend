@@ -6,7 +6,6 @@ import asyncio
 import json
 import aiofiles
 from pydantic import BaseModel
-from util import handleErrors
 
 app = FastAPI()
 BACKENDS_FILE = "backends.json"
@@ -14,7 +13,6 @@ BACKENDS_FILE = "backends.json"
 class Server(BaseModel):
     url: str
 
-@handleErrors
 async def load_backends():
     try:
         async with aiofiles.open(BACKENDS_FILE, "r") as f:
@@ -23,7 +21,6 @@ async def load_backends():
     except Exception:
         return []
 
-@handleErrors
 async def save_backends(backends):
     async with aiofiles.open(BACKENDS_FILE, "w") as f:
         await f.write(json.dumps({"backends": backends}))
@@ -34,7 +31,6 @@ health_status = {}
 lock = asyncio.Lock()
 client = httpx.AsyncClient(timeout=None)
 
-@handleErrors
 async def health_check_loop():
     while True:
         async with lock:
@@ -50,7 +46,6 @@ async def health_check_loop():
         await asyncio.sleep(0.1)
 
 @app.on_event("startup")
-@handleErrors
 async def startup():
     loaded = await load_backends()
     backends.extend(loaded)
@@ -60,7 +55,6 @@ async def startup():
     asyncio.create_task(health_check_loop())
 
 @app.post("/servers")
-@handleErrors
 async def add_server(server: Server):
     async with lock:
         if server.url not in queue_counts:
@@ -71,7 +65,6 @@ async def add_server(server: Server):
     return {"servers": backends}
 
 @app.delete("/servers")
-@handleErrors
 async def remove_server(server: Server):
     async with lock:
         if server.url in queue_counts:
@@ -82,19 +75,16 @@ async def remove_server(server: Server):
     return {"servers": backends}
 
 @app.get("/servers")
-@handleErrors
 async def list_servers():
     async with lock:
         return {"servers": backends}
 
 @app.get("/queue-lengths")
-@handleErrors
 async def list_queue_lengths():
     async with lock:
         return {"queue_lengths": queue_counts, "health": health_status}
 
 @app.middleware("http")
-@handleErrors
 async def load_balancer(request: Request, call_next):
     path = request.url.path
     if path.startswith("/servers") or path == "/queue-lengths":

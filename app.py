@@ -1,32 +1,32 @@
-import httpx
 import asyncio
-import hmac
-import os
 import base64
 import json
+import random
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 from uuid import UUID, uuid4
-import random
 
+import httpx
+import jwt
+import nacl.bindings
 import uvicorn
+from argon2.low_level import hash_secret_raw, Type
 from asyncpg import create_pool, Pool, Connection
 from casbin import SyncedEnforcer
 from casbin_redis_watcher import new_watcher, WatcherOptions
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from databases import Database
 from fastapi import FastAPI, HTTPException, Query, Body, Request, Depends, status
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from redis.asyncio import Redis
 from sqlalchemy import Table, Column, Integer, String, MetaData
 
 from CasbinAdapter import CasbinAdapter
 from constants import ASYNCPG_URL, SECRET_KEY, REDIS_URL, KMS_URL
-from redis.asyncio import Redis
-from util import isUUIDv4, createMagicLink, decodeJwtRs256, generateJwtRs256, handleErrors
-from argon2.low_level import hash_secret_raw, Type
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-import nacl.bindings
-import jwt
+from util import isUUIDv4, createMagicLink, decodeJwtRs256, generateJwtRs256
 
 
 class SimpleUser:
@@ -37,23 +37,17 @@ class SimpleUser:
         self.onboarding_done = onboarding_done
 
 
-@handleErrors
 async def getCurrentUser(request: Request) -> SimpleUser | None:
-    email = request.headers.get("x-user-email")
-    if not email:
-        return None
-    async with request.app.state.db_pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT id, has_set_recovery_phrase, onboarding_done FROM \"user\" WHERE email=$1 AND is_deleted=FALSE",
-            email,
-        )
-    if row:
-        return SimpleUser(
-            row["id"],
-            email,
-            row["has_set_recovery_phrase"],
-            row["onboarding_done"],
-        )
+    email = request.headers.get("x-user-email", None)
+
+    if email:
+        async with request.app.state.db_pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT id, has_set_recovery_phrase, onboarding_done FROM \"user\" WHERE email=$1",
+                email,
+            )
+        if row:
+            return SimpleUser(row["id"], email, row["has_set_recovery_phrase"], row["onboarding_done"])
     return None
 
 
@@ -70,14 +64,14 @@ async def authorize(request: Request, user: SimpleUser = Depends(getCurrentUser)
     # if user.setup_done and not user.onboarding_done and not path.startswith("/auth") and path != "/onboarding":
     #     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Finish onboarding")
 
-    print("USER: ", user)
-    sub = str(user.email)
-    domain = "*"
-    obj = path
-    act = request.method.lower()
+    if not path.startswith("/auth"):
+        sub = str(user.email)
+        domain = "*"
+        obj = path
+        act = request.method.lower()
 
-    if not enforcer.enforce(sub, domain, obj, act):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+        if not enforcer.enforce(sub, domain, obj, act):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
 
     return True
 
@@ -230,15 +224,20 @@ async def lifespan(app: FastAPI):
         print("DB pool closed")
 
 
+
 app = FastAPI(lifespan=lifespan, dependencies=[Depends(authorize)])
+origins = [
+    "http://localhost:3000",
+    # add any other domains you serve your SPA from
+]
 
-
-@app.exception_handler(Exception)
-@handleErrors
-async def global_exception_handler(request: Request, exc: Exception):
-    print(f"Unhandled error: {exc}")
-    return JSONResponse({"detail": "Internal server error"}, status_code=500)
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,            # <-- your React app origin
+    allow_credentials=True,           # <-- if you send cookies or Authorization headers
+    allow_methods=["*"],              # <-- GET, POST, PUT, DELETE, OPTIONS, etc
+    allow_headers=["*"],              # <-- allow all request headers
+)
 
 def get_db_pool(request: Request) -> Pool:
     return request.app.state.db_pool
@@ -251,17 +250,18 @@ async def get_conn(db_pool: Pool = Depends(get_db_pool)):
 
 
 @app.get("/auth/public-key")
-@handleErrors
-
 async def getPublicKeyEndpoint(request: Request):
     return {"public_key": request.app.state.publicKey}
 
 
 @app.get("/auth/ed25519-public-key")
-@handleErrors
-
 async def getEd25519PublicKey(request: Request):
-    return {"public_key": request.app.state.ed25519PublicKey}
+    pubkey = request.app.state.ed25519PublicKey  # an Ed25519 key object
+    pem: bytes = pubkey.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    return {"public_key": pem.decode()}
 
 
 async def uploadDocument(fileBlob: bytes) -> dict:
@@ -279,8 +279,6 @@ async def uploadDocument(fileBlob: bytes) -> dict:
 ################################################################################
 
 @app.get("/global-search")
-@handleErrors
-
 async def globalSearch(
         q: str = Query(..., description="Search query string"),
         conn: Connection = Depends(get_conn)
@@ -303,8 +301,6 @@ async def globalSearch(
 
 
 @app.get("/get-notifications")
-@handleErrors
-
 async def getNotifications(
         size: int = Query(..., gt=0, description="Number of notifications per page"),
         last_seen_created_at: Optional[str] = Query(
@@ -365,8 +361,6 @@ async def getNotifications(
 
 
 @app.get("/get-profile-details")
-@handleErrors
-
 async def getProfileDetails(
         email: UUID = Query(..., description="UUID of the user whose profile to fetch"),
         conn: Connection = Depends(get_conn)
@@ -390,8 +384,6 @@ async def getProfileDetails(
 
 
 @app.get("/project-assessments/{project_id}")
-@handleErrors
-
 async def getProjectAssessments(project_id: str, db_pool: Pool = Depends(get_db_pool)):
     if not await isUUIDv4(project_id):
         raise HTTPException(status_code=400, detail="Invalid project id")
@@ -420,8 +412,6 @@ async def getProjectAssessments(project_id: str, db_pool: Pool = Depends(get_db_
 ################################################################################
 
 @app.get("/get-dashboard-metrics")
-@handleErrors
-
 async def getDashboardMetrics(conn: Connection = Depends(get_conn)):
     sql = "SELECT * FROM overall_aggregates;"
 
@@ -433,8 +423,6 @@ async def getDashboardMetrics(conn: Connection = Depends(get_conn)):
 
 
 @app.get("/get-calendar-events")
-@handleErrors
-
 async def getCalendarEvents(
         month: int = Query(
             ...,
@@ -481,8 +469,6 @@ async def getCalendarEvents(
 
 
 @app.get("/get-projects")
-@handleErrors
-
 async def getProjects(
         size: int = Query(..., gt=0, description="Number of projects per page"),
         last_seen_created_at: Optional[str] = Query(
@@ -555,8 +541,6 @@ async def getProjects(
 
 
 @app.get("/get-project-statuses")
-@handleErrors
-
 async def getProjectStatuses(conn: Connection = Depends(get_conn)):
     sql = """
             SELECT id, value, color
@@ -574,8 +558,6 @@ async def getProjectStatuses(conn: Connection = Depends(get_conn)):
 
 
 @app.get("/get-project-types")
-@handleErrors
-
 async def getProjectTypes(conn: Connection = Depends(get_conn)):
     sql = """
             SELECT id, value
@@ -592,8 +574,6 @@ async def getProjectTypes(conn: Connection = Depends(get_conn)):
 
 
 @app.get("/get-project-trades")
-@handleErrors
-
 async def getProjectTrades(conn: Connection = Depends(get_conn)):
     sql = """
             SELECT id, value
@@ -610,8 +590,6 @@ async def getProjectTrades(conn: Connection = Depends(get_conn)):
 
 
 @app.get("/get-project-priorities")
-@handleErrors
-
 async def getProjectPriorities(conn: Connection = Depends(get_conn)):
     sql = """
             SELECT id, value, color
@@ -628,8 +606,6 @@ async def getProjectPriorities(conn: Connection = Depends(get_conn)):
 
 
 @app.post("/create-new-project")
-@handleErrors
-
 async def createNewProject(
         payload: dict = Body(...),
         conn: Connection = Depends(get_conn)
@@ -712,8 +688,6 @@ async def createNewProject(
 # TODO:                        PROJECT VIEW ENDPOINTS                          #
 ################################################################################
 @app.get("/fetch-project")
-@handleErrors
-
 async def fetchProject(
         project_id: str = Query(..., description="Project UUID"),
         conn: Connection = Depends(get_conn)
@@ -822,8 +796,6 @@ async def fetchProject(
 
 
 @app.get("/get-messages")
-@handleErrors
-
 async def getMessages(
         projectId: str = Query(..., description="Project UUID"),
         size: int = Query(..., gt=0, description="Number of messages to return"),
@@ -907,8 +879,6 @@ async def getMessages(
 
 
 @app.get("/fetch-project-quotes")
-@handleErrors
-
 async def fetchProjectQuotesEndpoint(
         project_id: str = Query(..., description="Project UUID"),
         size: int = Query(..., gt=0, description="Number of quotes to return"),
@@ -991,8 +961,6 @@ async def fetchProjectQuotesEndpoint(
 
 
 @app.get("/fetch-project-documents")
-@handleErrors
-
 async def fetchProjectDocumentsEndpoint(
         project_id: str = Query(..., description="Project UUID"),
         size: int = Query(..., gt=0, description="Number of documents to return"),
@@ -1075,8 +1043,6 @@ async def fetchProjectDocumentsEndpoint(
 ################################################################################
 
 @app.get("/get-clients")
-@handleErrors
-
 async def getClients(
         size: int = Query(..., gt=0, description="Number of clients per page"),
         last_seen_created_at: Optional[str] = Query(
@@ -1154,8 +1120,6 @@ async def getClients(
 
 
 @app.get("/get-client-types")
-@handleErrors
-
 async def getClientTypes(conn: Connection = Depends(get_conn)):
     sql = """
             SELECT id, value
@@ -1172,8 +1136,6 @@ async def getClientTypes(conn: Connection = Depends(get_conn)):
 
 
 @app.get("/get-client-statuses")
-@handleErrors
-
 async def getClientStatuses(conn: Connection = Depends(get_conn)):
     sql = """
             SELECT id, value, color
@@ -1191,8 +1153,6 @@ async def getClientStatuses(conn: Connection = Depends(get_conn)):
 
 
 @app.post("/create-new-client")
-@handleErrors
-
 async def createNewClient(
         payload: dict = Body(...),
         conn: Connection = Depends(get_conn)
@@ -1282,8 +1242,6 @@ async def createNewClient(
 ################################################################################
 
 @app.get("/fetch-client")
-@handleErrors
-
 async def fetchClient(
         client_id: str = Query(..., description="Client UUID"),
         conn: Connection = Depends(get_conn)
@@ -1318,8 +1276,6 @@ async def fetchClient(
 
 
 @app.get("/fetch-client-invoices")
-@handleErrors
-
 async def fetchClientInvoices(
         client_id: str = Query(..., description="Client UUID"),
         size: int = Query(..., gt=0, description="Number of invoices to return"),
@@ -1392,8 +1348,6 @@ async def fetchClientInvoices(
 
 
 @app.get("/fetch-client-onboarding-documents")
-@handleErrors
-
 async def fetchClientOnboardingDocuments(
         client_id: str = Query(..., description="Client UUID"),
         size: int = Query(..., gt=0, description="Number of documents to return"),
@@ -1474,8 +1428,6 @@ async def fetchClientOnboardingDocuments(
 
 
 @app.get("/get-insurance-documents")
-@handleErrors
-
 async def getInsuranceDocuments(
         client_id: str = Query(..., description="Client UUID"),
         size: int = Query(..., gt=0, description="Number of documents to return"),
@@ -1553,8 +1505,6 @@ async def getInsuranceDocuments(
 
 
 @app.get("/fetch-client-projects")
-@handleErrors
-
 async def fetchClientProjects(
         client_id: str = Query(..., description="Client UUID"),
         size: int = Query(..., gt=0, description="Number of projects to return"),
@@ -1631,8 +1581,6 @@ async def fetchClientProjects(
 
 
 @app.get("/get-billings")
-@handleErrors
-
 async def getBillings(
         size: int = Query(..., gt=0, description="Number of invoices per page"),
         lastSeenCreatedAt: Optional[str] = Query(
@@ -1713,8 +1661,6 @@ async def getBillings(
 
 
 @app.get("/get-billing-statuses")
-@handleErrors
-
 async def getBillingStatuses(conn: Connection = Depends(get_conn)):
     sql = """
             SELECT id, value, color
@@ -1732,8 +1678,6 @@ async def getBillingStatuses(conn: Connection = Depends(get_conn)):
 
 
 @app.get("/get-passwords")
-@handleErrors
-
 async def getPasswords(
         clientId: str = Query(..., description="Client UUID"),
         size: int = Query(..., gt=0, description="Number of passwords per page"),
@@ -1799,8 +1743,6 @@ async def getPasswords(
 
 
 @app.post("/create-new-invoice")
-@handleErrors
-
 async def createNewInvoice(
         payload: dict = Body(...),
         conn: Connection = Depends(get_conn)
@@ -1857,8 +1799,6 @@ async def createNewInvoice(
 ################################################################################
 
 @app.post("/create-new-quote")
-@handleErrors
-
 async def createNewQuote(
         payload: dict = Body(...),
         conn: Connection = Depends(get_conn)
@@ -1912,8 +1852,6 @@ async def createNewQuote(
 
 
 @app.get("/get-invoice")
-@handleErrors
-
 async def getInvoice(
         id: str = Query(..., description="Invoice UUID"),
         conn: Connection = Depends(get_conn)
@@ -1932,8 +1870,6 @@ async def getInvoice(
 
 
 @app.get("/get-quote")
-@handleErrors
-
 async def getQuote(
         id: str = Query(..., description="Quote UUID"),
         conn: Connection = Depends(get_conn)
@@ -1956,8 +1892,6 @@ async def getQuote(
 ################################################################################
 
 @app.get("/get-onboarding-data")
-@handleErrors
-
 async def getOnboardingData(
         clientId: str = Query(..., description="Client UUID"),
         conn: Connection = Depends(get_conn)
@@ -2042,8 +1976,6 @@ async def getOnboardingData(
 
 
 @app.post("/save-onboarding-data")
-@handleErrors
-
 async def saveOnboardingData(
         payload: dict = Body(...),
         conn: Connection = Depends(get_conn)
@@ -2184,8 +2116,6 @@ async def saveOnboardingData(
 
 
 @app.post("/update-insurance-data")
-@handleErrors
-
 async def updateInsuranceData(
         payload: dict = Body(...),
         conn: Connection = Depends(get_conn)
@@ -2218,8 +2148,6 @@ async def updateInsuranceData(
 
 
 @app.post("/auth/invite")
-@handleErrors
-
 async def inviteUser(
         request: Request,
         payload: dict = Body(),
@@ -2247,11 +2175,11 @@ async def inviteUser(
     )
     user_id = row["id"]
 
-    token = await createMagicLink(
+    await createMagicLink(
         conn,
         user_id,
         request.app.state.privateKey,
-        purpose="invite",
+        purpose="signup",
         recipientEmail=email_to_invite,
         ttlHours=24,
     )
@@ -2266,8 +2194,6 @@ async def inviteUser(
 
 
 @app.put("/update-user")
-@handleErrors
-
 async def updateUser(payload: dict = Body(), conn: Connection = Depends(get_conn)):
     user_id = payload.get("userId")
     if not user_id or not await isUUIDv4(user_id):
@@ -2313,8 +2239,6 @@ async def updateUser(payload: dict = Body(), conn: Connection = Depends(get_conn
 
 
 @app.post("/auth/login")
-@handleErrors
-
 async def login(request: Request, payload: dict = Body(), conn: Connection = Depends(get_conn),
                 enforcer: SyncedEnforcer = Depends(getEnforcer)):
     if "clientPubKey" in payload:
@@ -2378,8 +2302,6 @@ async def login(request: Request, payload: dict = Body(), conn: Connection = Dep
 
 
 @app.post("/auth/set-recovery-phrase")
-@handleErrors
-
 async def setRecoveryPhrase(payload: dict = Body(), request: Request = None,
                             conn: Connection = Depends(get_conn),
                             enforcer: SyncedEnforcer = Depends(getEnforcer)):
@@ -2404,8 +2326,6 @@ async def setRecoveryPhrase(payload: dict = Body(), request: Request = None,
 
 
 @app.post("/auth/setup-recovery")
-@handleErrors
-
 async def setupRecovery(payload: dict = Body(), request: Request = None,
                         conn: Connection = Depends(get_conn),
                         enforcer: SyncedEnforcer = Depends(getEnforcer)):
@@ -2506,8 +2426,6 @@ async def setupRecovery(payload: dict = Body(), request: Request = None,
 
 
 @app.get("/auth/recovery-params")
-@handleErrors
-
 async def getRecoveryParams(email: str, conn: Connection = Depends(get_conn)):
     row = await conn.fetchrow(
         "SELECT u.id, p.salt, p.kdf_params FROM password p JOIN \"user\" u ON p.user_id=u.id WHERE u.email=$1",
@@ -2523,8 +2441,6 @@ async def getRecoveryParams(email: str, conn: Connection = Depends(get_conn)):
 
 
 @app.post("/auth/update-client-key")
-@handleErrors
-
 async def updateClientKey(payload: dict = Body(), request: Request = None,
                           conn: Connection = Depends(get_conn)):
     client_pub_b64 = payload.get("clientPubKey")
@@ -2563,8 +2479,6 @@ async def updateClientKey(payload: dict = Body(), request: Request = None,
 
 
 @app.post("/auth/complete-onboarding")
-@handleErrors
-
 async def completeOnboarding(payload: dict = Body(), conn: Connection = Depends(get_conn),
                              enforcer: SyncedEnforcer = Depends(getEnforcer)):
     userId = payload.get("userId")
@@ -2578,8 +2492,6 @@ async def completeOnboarding(payload: dict = Body(), conn: Connection = Depends(
 
 
 @app.post("/auth/revoke")
-@handleErrors
-
 async def revokeToken(request: Request, conn: Connection = Depends(get_conn)):
     token = request.cookies.get("session")
     if not token:
@@ -2601,8 +2513,6 @@ async def revokeToken(request: Request, conn: Connection = Depends(get_conn)):
 
 
 @app.post("/admin/blacklist")
-@handleErrors
-
 async def blacklistUser(email: str = Body(..., embed=True), request: Request = None,
                         conn: Connection = Depends(get_conn)):
     await conn.execute("UPDATE \"user\" SET is_blacklisted=TRUE WHERE email=$1", email)
@@ -2613,8 +2523,6 @@ async def blacklistUser(email: str = Body(..., embed=True), request: Request = N
 
 
 @app.post("/admin/unblacklist")
-@handleErrors
-
 async def unblacklistUser(email: str = Body(..., embed=True), request: Request = None,
                           conn: Connection = Depends(get_conn)):
     await conn.execute("UPDATE \"user\" SET is_blacklisted=FALSE WHERE email=$1", email)
@@ -2625,8 +2533,6 @@ async def unblacklistUser(email: str = Body(..., embed=True), request: Request =
 
 
 @app.get("/connection-test")
-@handleErrors
-
 async def connectionTest():
     return {"status": "ok"}
 
