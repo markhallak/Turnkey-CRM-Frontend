@@ -5,8 +5,37 @@ from uuid import UUID, uuid4
 from asyncpg import Connection
 import json
 import jwt
+import asyncio
+from functools import wraps
+from fastapi import HTTPException
 
 
+def handleErrors(func):
+    if asyncio.iscoroutinefunction(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            try:
+                return await func(*args, **kwargs)
+            except HTTPException:
+                raise
+            except Exception as e:
+                print(f"Error in {func.__name__}: {e}")
+                raise HTTPException(status_code=500, detail="Internal server error")
+
+        return wrapper
+    else:
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                print(f"Error in {func.__name__}: {e}")
+                return None
+
+        return wrapper
+
+
+@handleErrors
 async def isUUIDv4(u: str) -> bool:
     try:
         val = uuid.UUID(u, version=4)
@@ -16,6 +45,7 @@ async def isUUIDv4(u: str) -> bool:
     return str(val) == u
 
 
+@handleErrors
 async def createMagicLink(
         conn: Connection,
         user_id: UUID,
@@ -53,10 +83,12 @@ async def createMagicLink(
 
 
 
+@handleErrors
 def generateJwtRs256(payload: dict, privateKeyPem: str) -> str:
     return jwt.encode(payload, privateKeyPem, algorithm="RS256")
 
 
+@handleErrors
 def decodeJwtRs256(token: str, publicKeyPem: str) -> dict:
     return jwt.decode(token, publicKeyPem, algorithms=["RS256"])
 

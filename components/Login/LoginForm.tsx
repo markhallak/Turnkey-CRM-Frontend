@@ -10,7 +10,6 @@ import { useRouter } from "next/router";
 import { serverUrl } from "@/lib/config";
 import Image from "next/image";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import argon2 from "argon2-browser";
 import { encryptedPost, getClientPriv, storeClientPriv } from "@/lib/apiClient";
 
 export default function LoginForm({
@@ -64,10 +63,15 @@ export default function LoginForm({
       );
       if (!res.ok) throw new Error("params");
       const j = await res.json();
-      const salt = Buffer.from(j.salt, "base64");
       const params = JSON.parse(Buffer.from(j.kdfParams, "base64").toString());
-      const { hash } = await argon2.hash({ pass: phrase, salt, ...params });
-      storeClientPriv(hash);
+      const resHash = await fetch("/api/argon-hash", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pass: phrase, salt: j.salt, ...params }),
+      });
+      if (!resHash.ok) throw new Error("hash");
+      const { hash: hashB64 } = await resHash.json();
+      storeClientPriv(Buffer.from(hashB64, "base64"));
       await encryptedPost("/auth/update-client-key", { userId: j.userId });
       setShowRecovery(false);
       setPhrase("");

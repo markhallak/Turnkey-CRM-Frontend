@@ -3,6 +3,7 @@ import json
 import os
 import asyncio
 from uuid import UUID
+from util import handleErrors
 
 import asyncpg
 import requests
@@ -17,6 +18,7 @@ NOTIFICATION_CHANNEL = "new_notification_row"
 MAGIC_LINK_CHANNEL = "new_magic_link_row"
 
 
+@handleErrors
 async def send_email(subject: str, body: str, recipient: str):
     headers = {
         "accept": "application/json",
@@ -50,6 +52,7 @@ async def send_email(subject: str, body: str, recipient: str):
         return False
 
 
+@handleErrors
 async def handle_notification(conn, pid, channel, payload):
     """
     Handler for INSERTs on the notification table.
@@ -78,6 +81,7 @@ async def handle_notification(conn, pid, channel, payload):
     await send_email(subject, body, recipient)
 
 
+@handleErrors
 async def handle_magic_link(connection, pid, channel, payload):
     data = json.loads(payload)
     recipient = data.get("send_to")
@@ -210,6 +214,7 @@ async def handle_magic_link(connection, pid, channel, payload):
     print("For some reason, link wasn't sent")
 
 
+@handleErrors
 async def listener():
     # Single connection for listening to both channels
     conn = await asyncpg.connect(dsn=ASYNCPG_URL)

@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException, Request
 from typing import Set
+from util import handleErrors
 from cryptography.hazmat.primitives.asymmetric import rsa, ed25519
 from cryptography.hazmat.primitives import serialization
 import base64
@@ -18,6 +19,7 @@ edPrivateKey = ed25519.Ed25519PrivateKey.generate()
 edPublicKey = edPrivateKey.public_key()
 
 
+@handleErrors
 def serializePrivate(key: rsa.RSAPrivateKey) -> str:
     return key.private_bytes(
         encoding=serialization.Encoding.PEM,
@@ -26,6 +28,7 @@ def serializePrivate(key: rsa.RSAPrivateKey) -> str:
     ).decode()
 
 
+@handleErrors
 def serializePublic(key: rsa.RSAPublicKey) -> str:
     return key.public_bytes(
         encoding=serialization.Encoding.PEM,
@@ -33,6 +36,7 @@ def serializePublic(key: rsa.RSAPublicKey) -> str:
     ).decode()
 
 
+@handleErrors
 def serializeEdPrivate(key: ed25519.Ed25519PrivateKey) -> str:
     raw = key.private_bytes(
         encoding=serialization.Encoding.Raw,
@@ -42,6 +46,7 @@ def serializeEdPrivate(key: ed25519.Ed25519PrivateKey) -> str:
     return base64.b64encode(raw).decode()
 
 
+@handleErrors
 def serializeEdPublic(key: ed25519.Ed25519PublicKey) -> str:
     raw = key.public_bytes(
         encoding=serialization.Encoding.Raw,
@@ -51,6 +56,7 @@ def serializeEdPublic(key: ed25519.Ed25519PublicKey) -> str:
 
 
 @app.get("/private-key")
+@handleErrors
 async def getPrivateKey(request: Request):
     client_ip = request.client.host
     if client_ip not in ALLOWED_IPS:
@@ -59,11 +65,13 @@ async def getPrivateKey(request: Request):
 
 
 @app.get("/public-key")
+@handleErrors
 async def getPublicKey():
     return {"publicKey": serializePublic(publicKey)}
 
 
 @app.get("/ed25519-private-key")
+@handleErrors
 async def getEdPrivateKey(request: Request):
     client_ip = request.client.host
     if client_ip not in ALLOWED_IPS:
@@ -72,6 +80,7 @@ async def getEdPrivateKey(request: Request):
 
 
 @app.get("/ed25519-public-key")
+@handleErrors
 async def getEdPublicKey():
     return {"publicKey": serializeEdPublic(edPublicKey)}
 
