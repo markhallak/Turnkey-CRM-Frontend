@@ -1,7 +1,7 @@
 import SetupRecoveryForm from "@/components/Login/SetupRecoveryForm";
 import { useRouter } from "next/router";
 
-export default function SetupRecoveryPage() {
+export default function SetRecoveryPhrasePage() {
   const router = useRouter();
   const { userId, username } = router.query as { userId?: string; username?: string };
   if (!userId || !username) return <p className="p-4">Missing info</p>;

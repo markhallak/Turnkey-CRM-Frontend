@@ -5,6 +5,7 @@ import { Label } from "@/components/ui/label";
 import { serverUrl } from "@/lib/config";
 import argon2 from "argon2-browser";
 import nacl from "tweetnacl";
+import { importSPKI, jwtVerify } from "jose";
 import * as React from "react";
 
 interface Props {
@@ -32,12 +33,25 @@ export default function SetupRecoveryForm({ userId, username }: Props) {
         sigKey: Buffer.from(sig.publicKey).toString("base64"),
         encKey: Buffer.from(enc.publicKey).toString("base64"),
       };
-      await fetch(`${serverUrl}/auth/setup-recovery`, {
+      const res = await fetch(`${serverUrl}/auth/set-recovery-phrase`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-username": username },
         body: JSON.stringify(payload),
       });
-      window.location.href = "/onboarding";
+      const data = await res.json();
+      const cookieKey = document.cookie
+        .split("; ")
+        .find((c) => c.startsWith("publicKey="));
+      let pub = cookieKey ? decodeURIComponent(cookieKey.split("=")[1]) : null;
+      if (!pub) {
+        const r = await fetch(`${serverUrl}/auth/public-key`);
+        const j = await r.json();
+        pub = j.public_key;
+        document.cookie = `publicKey=${encodeURIComponent(pub)}; path=/`;
+      }
+      const key = await importSPKI(pub!, "RS256");
+      const { payload: pl } = await jwtVerify(data.token, key);
+      window.location.href = pl.next_step as string;
     } finally {
       setLoading(false);
     }
