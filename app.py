@@ -2,6 +2,8 @@ import httpx
 import asyncio
 import hmac
 import os
+import base64
+import json
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 from typing import Optional
@@ -18,8 +20,13 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import Table, Column, Integer, String, MetaData
 
 from CasbinAdapter import CasbinAdapter
-from constants import ASYNCPG_URL, SECRET_KEY
+from constants import ASYNCPG_URL, SECRET_KEY, REDIS_URL
+from redis.asyncio import Redis
 from util import isUUIDv4, createMagicLink, decodeJwtRs256
+from argon2.low_level import hash_secret_raw, Type
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+import nacl.bindings
+import jwt
 
 
 class SimpleUser:
@@ -68,6 +75,27 @@ async def authorize(request: Request, user: SimpleUser = Depends(getCurrentUser)
     return True
 
 
+async def verifySession(request: Request):
+    token = request.cookies.get("session")
+    if not token:
+        raise HTTPException(status_code=401, detail="unauthenticated")
+    try:
+        data = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+    except Exception:
+        raise HTTPException(status_code=401, detail="unauthenticated")
+    redis = request.app.state.redis
+    jti = data.get("jti")
+    sub = data.get("sub")
+    if not jti or not sub:
+        raise HTTPException(status_code=401, detail="unauthenticated")
+    if not await redis.sismember("active_jtis", jti):
+        raise HTTPException(status_code=401, detail="revoked")
+    if await redis.sismember("blacklisted_users", sub):
+        raise HTTPException(status_code=403, detail="blacklisted")
+    request.state.user_email = sub
+    return sub
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # startup logic
@@ -106,11 +134,56 @@ async def lifespan(app: FastAPI):
     )
     print("DB pool created")
 
+    redis = Redis.from_url(REDIS_URL, decode_responses=True)
+    app.state.redis = redis
+    async with app.state.db_pool.acquire() as c:
+        rows = await c.fetch("SELECT jti FROM jwt_tokens WHERE revoked=FALSE AND expires_at>NOW()")
+        if rows:
+            await redis.sadd("active_jtis", *[r["jti"] for r in rows])
+        rows = await c.fetch("SELECT email FROM \"user\" WHERE is_blacklisted=TRUE")
+        if rows:
+            await redis.sadd("blacklisted_users", *[r["email"] for r in rows])
+
+    async def listen_jwt():
+        pub = redis.pubsub()
+        await pub.subscribe("jwt_updates")
+        async for m in pub.listen():
+            if m.get("type") != "message":
+                continue
+            d = m.get("data")
+            if isinstance(d, bytes):
+                d = d.decode()
+            if d.startswith("add:"):
+                await redis.sadd("active_jtis", d[4:])
+            elif d.startswith("remove:"):
+                await redis.srem("active_jtis", d[7:])
+
+    async def listen_blacklist():
+        pub = redis.pubsub()
+        await pub.subscribe("blacklist_updates")
+        async for m in pub.listen():
+            if m.get("type") != "message":
+                continue
+            d = m.get("data")
+            if isinstance(d, bytes):
+                d = d.decode()
+            if d.startswith("add:"):
+                await redis.sadd("blacklisted_users", d[4:])
+            elif d.startswith("remove:"):
+                await redis.srem("blacklisted_users", d[7:])
+
+    asyncio.create_task(listen_jwt())
+    asyncio.create_task(listen_blacklist())
+
     async with httpx.AsyncClient() as client:
         privRes = await client.get(f"{KMS_URL}/private-key")
         pubRes = await client.get(f"{KMS_URL}/public-key")
+        edPrivRes = await client.get(f"{KMS_URL}/ed25519-private-key")
+        edPubRes = await client.get(f"{KMS_URL}/ed25519-public-key")
     app.state.privateKey = privRes.json()["privateKey"]
     app.state.publicKey = pubRes.json()["publicKey"]
+    app.state.ed25519PrivateKey = edPrivRes.json()["privateKey"]
+    app.state.ed25519PublicKey = edPubRes.json()["publicKey"]
 
     async def refreshKeys():
         while True:
@@ -118,9 +191,18 @@ async def lifespan(app: FastAPI):
             async with httpx.AsyncClient() as c:
                 priv = await c.get(f"{KMS_URL}/private-key")
                 pub = await c.get(f"{KMS_URL}/public-key")
-            if priv.json()["privateKey"] != app.state.privateKey or pub.json()["publicKey"] != app.state.publicKey:
+                edPriv = await c.get(f"{KMS_URL}/ed25519-private-key")
+                edPub = await c.get(f"{KMS_URL}/ed25519-public-key")
+            if (
+                priv.json()["privateKey"] != app.state.privateKey or
+                pub.json()["publicKey"] != app.state.publicKey or
+                edPriv.json()["privateKey"] != app.state.ed25519PrivateKey or
+                edPub.json()["publicKey"] != app.state.ed25519PublicKey
+            ):
                 app.state.privateKey = priv.json()["privateKey"]
                 app.state.publicKey = pub.json()["publicKey"]
+                app.state.ed25519PrivateKey = edPriv.json()["privateKey"]
+                app.state.ed25519PublicKey = edPub.json()["publicKey"]
 
     asyncio.create_task(refreshKeys())
 
@@ -137,6 +219,7 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         await app.state.db_pool.close()
+        await app.state.redis.close()
         print("DB pool closed")
 
 
@@ -152,9 +235,15 @@ async def get_conn(db_pool: Pool = Depends(get_db_pool)):
         yield conn
 
 
+
 @app.get("/auth/public-key")
 async def getPublicKeyEndpoint(request: Request):
     return {"public_key": request.app.state.publicKey}
+
+
+@app.get("/auth/ed25519-public-key")
+async def getEd25519PublicKey(request: Request):
+    return {"public_key": request.app.state.ed25519PublicKey}
 
 
 async def uploadDocument(fileBlob: bytes) -> dict:
@@ -2134,12 +2223,44 @@ async def updateUser(payload: dict = Body(), conn: Connection = Depends(get_conn
 @app.post("/auth/login")
 async def login(request: Request, payload: dict = Body(), conn: Connection = Depends(get_conn),
                 enforcer: SyncedEnforcer = Depends(getEnforcer)):
-    email = payload.get("email")
+    if "clientPubKey" in payload:
+        client_pub_b64 = payload.get("clientPubKey")
+        nonce_b64 = payload.get("nonce")
+        ct_b64 = payload.get("ciphertext")
+        if not client_pub_b64 or not nonce_b64 or not ct_b64:
+            raise HTTPException(status_code=400, detail="Invalid payload")
+        try:
+            client_pub = base64.b64decode(client_pub_b64)
+            nonce = base64.b64decode(nonce_b64)
+            cipher = base64.b64decode(ct_b64)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Bad encoding")
+        server_ed_priv = base64.b64decode(request.app.state.ed25519PrivateKey)
+        server_x_priv = nacl.bindings.crypto_sign_ed25519_sk_to_curve25519(server_ed_priv)
+        client_x_pub = nacl.bindings.crypto_sign_ed25519_pk_to_curve25519(client_pub)
+        shared = nacl.bindings.crypto_scalarmult(server_x_priv, client_x_pub)
+        aesgcm = AESGCM(shared)
+        try:
+            data = aesgcm.decrypt(nonce, cipher, None)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Decrypt failed")
+        try:
+            j = json.loads(data.decode())
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid data")
+        email = j.get("email")
+    else:
+        email = payload.get("email")
     if not email:
         raise HTTPException(status_code=400, detail="Email required")
-    row = await conn.fetchrow("SELECT id FROM \"user\" WHERE email=$1", email)
+    row = await conn.fetchrow(
+        "SELECT id, is_blacklisted FROM \"user\" WHERE email=$1 AND is_deleted=FALSE",
+        email,
+    )
     if not row:
         raise HTTPException(status_code=404, detail="User not found")
+    if row["is_blacklisted"]:
+        raise HTTPException(status_code=403, detail="blacklisted")
     userId = row["id"]
     token = await createMagicLink(
         conn,
@@ -2167,70 +2288,176 @@ async def setRecoveryPhrase(payload: dict = Body(), request: Request = None,
                             conn: Connection = Depends(get_conn),
                             enforcer: SyncedEnforcer = Depends(getEnforcer)):
     token = payload.get("token")
-    userId = payload.get("userId")
-    encSalt = payload.get("salt")
-    encParams = payload.get("kdfParams")
-    sigKey = payload.get("sigKey")
-    encKey = payload.get("encKey")
+    if not token:
+        raise HTTPException(status_code=400, detail="Token required")
 
-    if token and not userId:
-        data = decodeJwtRs256(token, request.app.state.publicKey)
-        uuid_str = data.get("uuid")
-        if not uuid_str or not await isUUIDv4(uuid_str):
-            raise HTTPException(status_code=400, detail="Invalid token")
-        row = await conn.fetchrow(
-            "SELECT m.user_id, m.token, m.expires_at, m.consumed, u.email FROM magic_link m JOIN \"user\" u ON m.user_id=u.id WHERE m.uuid=$1 AND m.purpose='invite'",
-            UUID(uuid_str),
-        )
-        if not row or row["token"] != token:
-            raise HTTPException(status_code=400, detail="Link not found")
-        if row["consumed"] or row["expires_at"] < datetime.now(timezone.utc):
-            raise HTTPException(status_code=400, detail="Link expired")
-        await conn.execute("UPDATE magic_link SET consumed=TRUE WHERE uuid=$1", UUID(uuid_str))
-        return {"userId": str(row["user_id"]), "username": row["email"]}
+    data = decodeJwtRs256(token, request.app.state.publicKey)
+    uuid_str = data.get("uuid")
+    if not uuid_str or not await isUUIDv4(uuid_str):
+        raise HTTPException(status_code=400, detail="Invalid token")
+    row = await conn.fetchrow(
+        "SELECT m.user_id, m.token, m.expires_at, m.consumed, u.email FROM magic_link m JOIN \"user\" u ON m.user_id=u.id WHERE m.uuid=$1 AND m.purpose='invite'",
+        UUID(uuid_str),
+    )
+    if not row or row["token"] != token:
+        raise HTTPException(status_code=400, detail="Link not found")
+    if row["consumed"] or row["expires_at"] < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Link expired")
+    await conn.execute("UPDATE magic_link SET consumed=TRUE WHERE uuid=$1", UUID(uuid_str))
+    return {"userId": str(row["user_id"]), "username": row["email"]}
 
-    if not userId or not await isUUIDv4(userId):
+
+@app.post("/auth/setup-recovery")
+async def setupRecovery(payload: dict = Body(), request: Request = None,
+                        conn: Connection = Depends(get_conn),
+                        enforcer: SyncedEnforcer = Depends(getEnforcer)):
+    client_pub_b64 = payload.get("clientPubKey")
+    nonce_b64 = payload.get("nonce")
+    ct_b64 = payload.get("ciphertext")
+    if not client_pub_b64 or not nonce_b64 or not ct_b64:
+        raise HTTPException(status_code=400, detail="Invalid payload")
+
+    try:
+        client_pub = base64.b64decode(client_pub_b64)
+        nonce = base64.b64decode(nonce_b64)
+        cipher = base64.b64decode(ct_b64)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Bad encoding")
+
+    server_ed_priv = base64.b64decode(request.app.state.ed25519PrivateKey)
+    server_x_priv = nacl.bindings.crypto_sign_ed25519_sk_to_curve25519(server_ed_priv)
+    client_x_pub = nacl.bindings.crypto_sign_ed25519_pk_to_curve25519(client_pub)
+    shared = nacl.bindings.crypto_scalarmult(server_x_priv, client_x_pub)
+
+    aesgcm = AESGCM(shared)
+    try:
+        data = aesgcm.decrypt(nonce, cipher, None)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Decrypt failed")
+
+    try:
+        j = json.loads(data.decode())
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid data")
+
+    user_id = j.get("userId")
+    recovery_phrase = j.get("recoveryPhrase")
+    salt_b64 = j.get("salt")
+    params_b64 = j.get("kdfParams")
+    priv_b64 = j.get("clientPrivKey")
+    if not user_id or not await isUUIDv4(user_id):
         raise HTTPException(status_code=400, detail="Invalid userId")
 
-    await conn.execute(
-        "INSERT INTO password (user_id, client_id, encrypted_password, iv, salt, kdf_params) VALUES ($1, $2, '', '', $3, $4) ON CONFLICT (user_id) DO UPDATE SET salt=EXCLUDED.salt, kdf_params=EXCLUDED.kdf_params",
-        userId,
-        UUID("00000000-0000-0000-0000-000000000000"),
-        encSalt,
-        encParams,
-    )
-    await conn.execute(
-        "INSERT INTO user_key (user_id, purpose, public_key) VALUES ($1, 'sig', $2) ON CONFLICT (user_id, purpose) DO UPDATE SET public_key=EXCLUDED.public_key",
-        userId,
-        sigKey,
-    )
-    await conn.execute(
-        "INSERT INTO user_key (user_id, purpose, public_key) VALUES ($1, 'enc', $2) ON CONFLICT (user_id, purpose) DO UPDATE SET public_key=EXCLUDED.public_key",
-        userId,
-        encKey,
-    )
-    await conn.execute(
-        "UPDATE \"user\" SET is_active=TRUE, has_set_recovery_phrase=TRUE WHERE id=$1",
-        userId,
+    salt = base64.b64decode(salt_b64)
+    params = json.loads(base64.b64decode(params_b64).decode())
+    client_priv = base64.b64decode(priv_b64)
+
+    digest = hash_secret_raw(
+        recovery_phrase.encode(),
+        salt,
+        time_cost=params.get("time", 2),
+        memory_cost=params.get("mem", 19 * 1024),
+        parallelism=params.get("parallelism", 1),
+        hash_len=params.get("hashLen", 32),
+        type=Type.ID,
     )
 
-    access_payload = {
-        "userId": userId,
-        "exp": datetime.now(timezone.utc) + timedelta(seconds=900),
-    }
-    refresh_payload = {
-        "userId": userId,
-        "scope": "refresh",
-        "exp": datetime.now(timezone.utc) + timedelta(seconds=1209600),
-    }
-    access = jwt.encode(access_payload, SECRET_KEY, algorithm="HS256")
-    refresh = jwt.encode(refresh_payload, SECRET_KEY, algorithm="HS256")
+    await conn.execute(
+        "INSERT INTO password (user_id, client_id, encrypted_password, iv, salt, kdf_params) VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (user_id) DO UPDATE SET encrypted_password=EXCLUDED.encrypted_password, iv=EXCLUDED.iv, salt=EXCLUDED.salt, kdf_params=EXCLUDED.kdf_params",
+        user_id,
+        UUID('00000000-0000-0000-0000-000000000000'),
+        digest,
+        nonce,
+        salt,
+        json.dumps(params),
+    )
+    await conn.execute(
+        "INSERT INTO user_key (user_id, purpose, public_key) VALUES ($1,'sig',$2) ON CONFLICT (user_id, purpose) DO UPDATE SET public_key=EXCLUDED.public_key",
+        user_id,
+        client_pub,
+    )
+
+
+    await conn.execute(
+        "UPDATE \"user\" SET is_active=TRUE, has_set_recovery_phrase=TRUE WHERE id=$1",
+        user_id,
+    )
+
+    email_row = await conn.fetchrow('SELECT email FROM "user" WHERE id=$1', user_id)
+    user_email = email_row["email"] if email_row else ""
+    jti = str(uuid4())
+    exp_dt = datetime.now(timezone.utc) + timedelta(minutes=5)
+    await conn.execute(
+        "INSERT INTO jwt_tokens (jti, user_email, expires_at, revoked) VALUES ($1,$2,$3,FALSE)",
+        jti,
+        user_email,
+        exp_dt,
+    )
+    redis = request.app.state.redis
+    await redis.sadd("active_jtis", jti)
+    await redis.publish("jwt_updates", f"add:{jti}")
     next_payload = {
         "next_step": "/onboarding",
         "exp": int((datetime.now(timezone.utc) + timedelta(minutes=5)).timestamp()),
     }
     nav_token = generateJwtRs256(next_payload, request.app.state.privateKey)
-    return {"access": access, "refresh": refresh, "token": nav_token}
+    session_token = jwt.encode({"sub": user_email, "jti": jti, "exp": exp_dt}, SECRET_KEY, algorithm="HS256")
+    response = JSONResponse({"token": nav_token})
+    response.set_cookie("session", session_token, httponly=True, secure=True)
+    return response
+
+
+@app.get("/auth/recovery-params")
+async def getRecoveryParams(email: str, conn: Connection = Depends(get_conn)):
+    row = await conn.fetchrow(
+        "SELECT u.id, p.salt, p.kdf_params FROM password p JOIN \"user\" u ON p.user_id=u.id WHERE u.email=$1",
+        email,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="Not found")
+    return {
+        "userId": str(row["id"]),
+        "salt": base64.b64encode(row["salt"]).decode(),
+        "kdfParams": base64.b64encode(row["kdf_params"].encode()).decode(),
+    }
+
+
+@app.post("/auth/update-client-key")
+async def updateClientKey(payload: dict = Body(), request: Request = None,
+                          conn: Connection = Depends(get_conn)):
+    client_pub_b64 = payload.get("clientPubKey")
+    nonce_b64 = payload.get("nonce")
+    ct_b64 = payload.get("ciphertext")
+    if not client_pub_b64 or not nonce_b64 or not ct_b64:
+        raise HTTPException(status_code=400, detail="Invalid payload")
+    try:
+        client_pub = base64.b64decode(client_pub_b64)
+        nonce = base64.b64decode(nonce_b64)
+        cipher = base64.b64decode(ct_b64)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Bad encoding")
+
+    server_ed_priv = base64.b64decode(request.app.state.ed25519PrivateKey)
+    server_x_priv = nacl.bindings.crypto_sign_ed25519_sk_to_curve25519(server_ed_priv)
+    client_x_pub = nacl.bindings.crypto_sign_ed25519_pk_to_curve25519(client_pub)
+    shared = nacl.bindings.crypto_scalarmult(server_x_priv, client_x_pub)
+
+    aesgcm = AESGCM(shared)
+    try:
+        data = aesgcm.decrypt(nonce, cipher, None)
+        j = json.loads(data.decode())
+    except Exception:
+        raise HTTPException(status_code=400, detail="Decrypt failed")
+    user_id = j.get("userId")
+    if not user_id or not await isUUIDv4(user_id):
+        raise HTTPException(status_code=400, detail="Invalid userId")
+
+    await conn.execute(
+        "INSERT INTO user_key (user_id, purpose, public_key) VALUES ($1,'sig',$2) ON CONFLICT (user_id, purpose) DO UPDATE SET public_key=EXCLUDED.public_key",
+        user_id,
+        client_pub,
+    )
+    return {"status": "ok"}
 
 
 @app.post("/auth/complete-onboarding")
@@ -2243,6 +2470,47 @@ async def completeOnboarding(payload: dict = Body(), conn: Connection = Depends(
         "UPDATE \"user\" SET onboarding_done=TRUE WHERE id=$1",
         userId,
     )
+    return {"status": "ok"}
+
+
+@app.post("/auth/revoke")
+async def revokeToken(request: Request, conn: Connection = Depends(get_conn)):
+    token = request.cookies.get("session")
+    if not token:
+        raise HTTPException(status_code=401, detail="no token")
+    try:
+        data = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+    except Exception:
+        raise HTTPException(status_code=401, detail="invalid")
+    jti = data.get("jti")
+    if not jti:
+        raise HTTPException(status_code=400, detail="bad token")
+    await conn.execute("UPDATE jwt_tokens SET revoked=TRUE WHERE jti=$1", jti)
+    redis = request.app.state.redis
+    await redis.srem("active_jtis", jti)
+    await redis.publish("jwt_updates", f"remove:{jti}")
+    resp = JSONResponse({"status": "revoked"})
+    resp.delete_cookie("session")
+    return resp
+
+
+@app.post("/admin/blacklist")
+async def blacklistUser(email: str = Body(..., embed=True), request: Request = None,
+                        conn: Connection = Depends(get_conn)):
+    await conn.execute("UPDATE \"user\" SET is_blacklisted=TRUE WHERE email=$1", email)
+    redis = request.app.state.redis
+    await redis.sadd("blacklisted_users", email)
+    await redis.publish("blacklist_updates", f"add:{email}")
+    return {"status": "ok"}
+
+
+@app.post("/admin/unblacklist")
+async def unblacklistUser(email: str = Body(..., embed=True), request: Request = None,
+                          conn: Connection = Depends(get_conn)):
+    await conn.execute("UPDATE \"user\" SET is_blacklisted=FALSE WHERE email=$1", email)
+    redis = request.app.state.redis
+    await redis.srem("blacklisted_users", email)
+    await redis.publish("blacklist_updates", f"remove:{email}")
     return {"status": "ok"}
 
 
