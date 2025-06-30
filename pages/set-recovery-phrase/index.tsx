@@ -20,30 +20,26 @@ export default function SetRecoveryPhrasePage() {
       if (!token) return;
 
       // Try existing publicKey cookie, else fetch it
-      let pubKey = document.cookie
-        .split("; ")
-        .find((c) => c.startsWith("publicKey="))
-        ?.split("=")[1];
-      if (pubKey) {
-        pubKey = decodeURIComponent(pubKey);
-      }
+      let pem = document.cookie
+  .split("; ")
+  .find((c) => c.startsWith("publicKey="))
+  ?.split("=")[1];
+if (pem) {
+  pem = decodeURIComponent(pem);
+}
 
       try {
         // If no cookie, fetch from server
-        if (!pubKey) {
-          const keyRes = await fetch(
-            `${serverUrl}/auth/ed25519-public-key`
-          );
-          if (!keyRes.ok) throw new Error();
-          const { public_key } = await keyRes.json();
-          pubKey = public_key;
-          document.cookie = `publicKey=${encodeURIComponent(
-            public_key
-          )}; path=/`;
+        if (!pem) {
+          const res = await fetch(`${serverUrl}/auth/ed25519-public-key`);
+  if (!res.ok) throw new Error(`public key fetch failed: ${res.status}`);
+  const { public_key: fetchedPem } = await res.json();
+  pem = fetchedPem;                   // already PEM-formatted
+  document.cookie = `publicKey=${encodeURIComponent(pem)}; path=/`;
         }
 
         // Verify JWT
-        const imported = await importSPKI(pubKey, "RS256");
+const imported = await importSPKI(pem, "RS256");
         const { payload } = await jwtVerify(token, imported);
         if (payload.exp && payload.exp * 1000 < Date.now()) {
           toast({
@@ -62,13 +58,16 @@ export default function SetRecoveryPhrasePage() {
             body: JSON.stringify({ token }),
           }
         );
+        console.log("RESPONSE: ", res);
         if (!res.ok) throw new Error();
         const data = await res.json();
         setInfo({
           userId: data.userId,
           username: data.username,
         });
-      } catch {
+      } catch (err) {
+            console.error("verifyAndSetup failed:", err);
+
         toast({
           description: "Invalid or expired signup link.",
           variant: "destructive",
