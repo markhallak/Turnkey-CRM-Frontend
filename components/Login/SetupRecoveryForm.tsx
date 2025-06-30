@@ -3,7 +3,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { serverUrl } from "@/lib/config";
-import argon2 from "argon2-browser";
 import { importSPKI, jwtVerify } from "jose";
 import { encryptedPost, storeClientPriv } from "@/lib/apiClient";
 import * as React from "react";
@@ -23,8 +22,14 @@ export default function SetupRecoveryForm({ userId, username }: Props) {
     try {
       const salt = crypto.getRandomValues(new Uint8Array(16));
       const params = { time: 2, mem: 19 * 1024, parallelism: 1, hashLen: 32 };
-      const { hash } = await argon2.hash({ pass: phrase, salt, ...params });
-      const priv = hash;
+      const resHash = await fetch("/api/argon-hash", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pass: phrase, salt: Buffer.from(salt).toString("base64"), ...params }),
+      });
+      if (!resHash.ok) throw new Error("hash");
+      const { hash: hashB64 } = await resHash.json();
+      const priv = Buffer.from(hashB64, "base64");
       const data = await encryptedPost<{ token: string }>("/auth/setup-recovery", {
         userId,
         recoveryPhrase: phrase,
