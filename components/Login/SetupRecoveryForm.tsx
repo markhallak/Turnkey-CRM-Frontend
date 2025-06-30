@@ -41,7 +41,9 @@ export default function SetupRecoveryForm({ userId, username }: Props) {
       const cookieKey = document.cookie
         .split("; ")
         .find((c) => c.startsWith("publicKey="));
-      let rsaPub = cookieKey ? decodeURIComponent(cookieKey.split("=")[1]) : null;
+      let rsaPub = cookieKey
+        ? decodeURIComponent(cookieKey.slice("publicKey=".length))
+        : null;
       if (!rsaPub) {
         const r = await fetch(`${serverUrl}/auth/public-key`);
         const j = await r.json();

@@ -21,17 +21,17 @@ export default function SetRecoveryPhrasePage() {
 
       // Try existing publicKey cookie, else fetch it
       let pem = document.cookie
-  .split("; ")
-  .find((c) => c.startsWith("publicKey="))
-  ?.split("=")[1];
-if (pem) {
-  pem = decodeURIComponent(pem);
-}
+        .split("; ")
+        .find((c) => c.startsWith("publicKey="))
+        ?.slice("publicKey=".length);
+      if (pem) {
+        pem = decodeURIComponent(pem);
+      }
 
       try {
         // If no cookie, fetch from server
         if (!pem) {
-          const res = await fetch(`${serverUrl}/auth/ed25519-public-key`);
+          const res = await fetch(`${serverUrl}/auth/public-key`);
   if (!res.ok) throw new Error(`public key fetch failed: ${res.status}`);
   const { public_key: fetchedPem } = await res.json();
   pem = fetchedPem;                   // already PEM-formatted
