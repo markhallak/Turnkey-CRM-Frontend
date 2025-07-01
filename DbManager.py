@@ -359,6 +359,7 @@ CREATE TABLE IF NOT EXISTS user_recovery_params (
   iv         BYTEA       NOT NULL,
   salt       BYTEA       NOT NULL,
   kdf_params JSONB       NOT NULL,
+  digest     BYTEA       NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

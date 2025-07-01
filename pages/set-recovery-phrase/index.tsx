@@ -19,19 +19,7 @@ export default function SetRecoveryPhrasePage() {
     const verifyAndSetup = async () => {
       if (!token) return;
 
-      const RSA_COOKIE = "rsaPublicKey";
-
-let pem = (() => {
-  const match = document.cookie
-    .split("; ")
-    .find((c) => c.startsWith(`${RSA_COOKIE}=`));
-
-  if (!match) return undefined;
-
-  const value = decodeURIComponent(match.slice(RSA_COOKIE.length + 1));
-  // guard: accept only real PEMs
-  return value.includes("-----BEGIN PUBLIC KEY-----") ? value : undefined;
-})();
+      let pem = localStorage.getItem("rsaPublicKey") || undefined;
 
       try {
         // If no cookie, fetch from server
@@ -39,10 +27,7 @@ let pem = (() => {
   const res = await fetch(`${serverUrl}/auth/public-key`);
   if (!res.ok) throw new Error("public key fetch failed");
   pem = (await res.json()).public_key;
-  // note new cookie name + explicit max-age
-  document.cookie = `${RSA_COOKIE}=${encodeURIComponent(
-    pem
-  )}; path=/; max-age=0; SameSite=Lax`;
+  localStorage.setItem("rsaPublicKey", pem);
 }
 
         console.log("PEM: ", pem);

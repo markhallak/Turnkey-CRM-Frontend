@@ -22,6 +22,8 @@ export default function LoginForm({
   const [showRecovery, setShowRecovery] = React.useState(false);
   const [phrase, setPhrase] = React.useState("");
   const [recoverLoading, setRecoverLoading] = React.useState(false);
+  const lastLoginRef = React.useRef(0);
+  const lastParamsRef = React.useRef(0);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -38,6 +40,10 @@ export default function LoginForm({
   };
 
   const sendLogin = async () => {
+    if (Date.now() - lastLoginRef.current < 60000) {
+      toast({ description: "Please wait before trying again", variant: "destructive" });
+      return;
+    }
     setLoading(true);
     try {
       await encryptedPost("/auth/login", { email });
@@ -46,21 +52,32 @@ export default function LoginForm({
       const msg = typeof err.message === "string" ? err.message : "";
       if (msg.includes("blacklisted")) {
         toast({ description: "Account is blacklisted.", variant: "destructive" });
+      } else if (msg.includes("User not found")) {
+        toast({ description: "Account not found", variant: "destructive" });
       } else {
         toast({ description: "Failed to send login link.", variant: "destructive" });
       }
     } finally {
       setLoading(false);
+      lastLoginRef.current = Date.now();
     }
   };
 
   const handleRecover = async () => {
     if (!phrase) return;
+    if (Date.now() - lastParamsRef.current < 60000) {
+      toast({ description: "Please wait before trying again", variant: "destructive" });
+      return;
+    }
     setRecoverLoading(true);
     try {
       const res = await fetch(
         `${serverUrl}/auth/get-recovery-params?email=${encodeURIComponent(email)}`
       );
+      if (res.status === 404) {
+        toast({ description: "Account not found", variant: "destructive" });
+        return;
+      }
       if (!res.ok) throw new Error("params");
       const j = await res.json();
       const params = JSON.parse(Buffer.from(j.kdfParams, "base64").toString());
@@ -72,7 +89,7 @@ export default function LoginForm({
       if (!resHash.ok) throw new Error("hash");
       const { hash: hashB64 } = await resHash.json();
       storeClientPriv(Buffer.from(hashB64, "base64"));
-      await encryptedPost("/auth/update-client-key", { userId: j.userId });
+      await encryptedPost("/auth/update-client-key", { userId: j.userId, digest: hashB64 });
       setShowRecovery(false);
       setPhrase("");
       await sendLogin();
@@ -80,6 +97,7 @@ export default function LoginForm({
       toast({ description: "Recovery failed", variant: "destructive" });
     } finally {
       setRecoverLoading(false);
+      lastParamsRef.current = Date.now();
     }
   };
 
