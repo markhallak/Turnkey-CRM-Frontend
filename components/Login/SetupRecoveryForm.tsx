@@ -30,14 +30,13 @@ export default function SetupRecoveryForm({ userId, username }: Props) {
       if (!resHash.ok) throw new Error("hash");
       const { hash: hashB64 } = await resHash.json();
       const priv = Buffer.from(hashB64, "base64");
-      const data = await encryptedPost<{ token: string }>("/auth/setup-recovery", {
+      storeClientPriv(priv);
+      const data = await encryptedPost<{ token: string }>("/auth/set-recovery-phrase", {
         userId,
         recoveryPhrase: phrase,
         salt: Buffer.from(salt).toString("base64"),
         kdfParams: Buffer.from(JSON.stringify(params)).toString("base64"),
-        clientPrivKey: Buffer.from(priv).toString("base64"),
       });
-      storeClientPriv(priv);
       const cookieKey = document.cookie
         .split("; ")
         .find((c) => c.startsWith("publicKey="));
