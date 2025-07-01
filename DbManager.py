@@ -352,8 +352,8 @@ CREATE TABLE IF NOT EXISTS client_password (
 """
 
 # Parameters used for user recovery phrase KDF
-USER_KDF_PARAMS = """
-CREATE TABLE IF NOT EXISTS user_kdf_params (
+USER_RECOVERY_PARAMS = """
+CREATE TABLE IF NOT EXISTS user_recovery_params (
   user_id    UUID        PRIMARY KEY
     REFERENCES "user"(id) ON DELETE CASCADE,
   iv         BYTEA       NOT NULL,
@@ -922,7 +922,7 @@ async def create_tables():
             ("magic_link", MAGIC_LINK),
             ("magic_link_listen_notify", MAGIC_LINK_LISTEN_NOTIFY),
             ("client_password", CLIENT_PASSWORD),
-            ("user_kdf_params", USER_KDF_PARAMS),
+            ("user_recovery_params", USER_RECOVERY_PARAMS),
             ("user_key", USER_KEY),
             ("jwt_token", JWT_TOKEN),
             ("insurance", INSURANCE),

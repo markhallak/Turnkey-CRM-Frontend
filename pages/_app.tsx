@@ -1,3 +1,4 @@
+import "@/lib/ed25519‐polyfill";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import AppSidebar from "@/components/Sidebar";
 import "@/styles/globals.css";

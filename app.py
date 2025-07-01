@@ -256,12 +256,7 @@ async def getPublicKeyEndpoint(request: Request):
 
 @app.get("/auth/ed25519-public-key")
 async def getEd25519PublicKey(request: Request):
-    pubkey = request.app.state.ed25519PublicKey  # an Ed25519 key object
-    pem: bytes = pubkey.public_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo
-    )
-    return {"public_key": pem.decode()}
+    return {"public_key": request.app.state.ed25519PublicKey}
 
 
 async def uploadDocument(fileBlob: bytes) -> dict:
@@ -2303,8 +2298,7 @@ async def login(request: Request, payload: dict = Body(), conn: Connection = Dep
 
 @app.post("/auth/set-recovery-phrase")
 async def setRecoveryPhrase(payload: dict = Body(), request: Request = None,
-                            conn: Connection = Depends(get_conn),
-                            enforcer: SyncedEnforcer = Depends(getEnforcer)):
+                            conn: Connection = Depends(get_conn)):
     # When called with encrypted data, finalize recovery setup
     if "clientPubKey" in payload:
         client_pub_b64 = payload.get("clientPubKey")
@@ -2321,7 +2315,9 @@ async def setRecoveryPhrase(payload: dict = Body(), request: Request = None,
             raise HTTPException(status_code=400, detail="Bad encoding")
 
         server_ed_priv = base64.b64decode(request.app.state.ed25519PrivateKey)
-        server_x_priv = nacl.bindings.crypto_sign_ed25519_sk_to_curve25519(server_ed_priv)
+        server_ed_pub = base64.b64decode(request.app.state.ed25519PublicKey)
+        ed_secret = server_ed_priv + server_ed_pub
+        server_x_priv = nacl.bindings.crypto_sign_ed25519_sk_to_curve25519(ed_secret)
         client_x_pub = nacl.bindings.crypto_sign_ed25519_pk_to_curve25519(client_pub)
         shared = nacl.bindings.crypto_scalarmult(server_x_priv, client_x_pub)
 
@@ -2357,7 +2353,7 @@ async def setRecoveryPhrase(payload: dict = Body(), request: Request = None,
 
         await conn.execute(
             """
-            INSERT INTO user_kdf_params (user_id, iv, salt, kdf_params)
+            INSERT INTO user_recovery_params (user_id, iv, salt, kdf_params)
             VALUES ($1, $2, $3, $4)
             ON CONFLICT (user_id)
             DO UPDATE SET iv=EXCLUDED.iv, salt=EXCLUDED.salt,
@@ -2412,7 +2408,7 @@ async def getRecoveryParams(email: str, conn: Connection = Depends(get_conn)):
         """
         SELECT u.id, p.salt, p.kdf_params
           FROM "user" u
-          JOIN user_kdf_params p ON p.user_id = u.id
+          JOIN user_recovery_params p ON p.user_id = u.id
          WHERE u.email=$1 AND u.is_deleted=FALSE
         """,
         email,

@@ -1,10 +1,10 @@
 // lib/apiClient.ts
 import { serverUrl } from "./config";
-import { getPublicKey, sign, utils as edUtils } from "@noble/ed25519";
 import {
   edwardsToMontgomeryPriv,
   edwardsToMontgomeryPub,
   x25519,
+  ed25519
 } from "@noble/curves/ed25519";
 
 let serverKey: Uint8Array | null = null;
@@ -62,7 +62,7 @@ export async function encryptedPost<T>(
   );
 
   // Build envelope
-  const clientPub = await getPublicKey(priv);
+  const clientPub = ed25519.getPublicKey(priv);
   const body = {
     clientPubKey: Buffer.from(clientPub).toString("base64"),
     nonce: Buffer.from(nonce).toString("base64"),
