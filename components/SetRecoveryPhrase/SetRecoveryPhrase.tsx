@@ -1,4 +1,4 @@
-// components/SetupRecoveryForm.tsx
+// components/SetRecoveryPhrase.tsx
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -9,20 +9,23 @@ import { usePasswordStrength } from "@/hooks/usePasswordStrength";
 import { serverUrl } from "@/lib/config";
 import { importSPKI, jwtVerify } from "jose";
 import { encryptedPost, storeClientPriv } from "@/lib/apiClient";
+import { useToast } from "@/hooks/use-toast";
 
-export default function SetupRecoveryForm({
+export default function SetRecoveryPhrase({
   userId,
   username,
+  token,
 }: {
   userId: string;
   username: string;
+  token: string;
 }) {
   const [phrase, setPhrase] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPhrase, setShowPhrase] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const { toast } = useToast();
   const { score, total, requirements } = usePasswordStrength(phrase);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -31,10 +34,12 @@ export default function SetupRecoveryForm({
       requirements.some((r) => !r.passed) ||
       phrase !== confirm
     ) {
-      setError("Please meet all requirements and confirm your phrase.");
+      toast({
+        description: "Please meet all requirements and confirm your phrase.",
+        variant: "destructive",
+      });
       return;
     }
-    setError("");
     setLoading(true);
     try {
       const salt = crypto.getRandomValues(new Uint8Array(16));
@@ -56,6 +61,7 @@ export default function SetupRecoveryForm({
         "/auth/set-recovery-phrase",
         {
           userId,
+          token,
           digest: hashB64,
           salt: Buffer.from(salt).toString("base64"),
           kdfParams: Buffer.from(JSON.stringify(params)).toString("base64"),
@@ -114,7 +120,7 @@ export default function SetupRecoveryForm({
           <div className="w-full !mt-3">
             <div className="h-2 w-full bg-gray-200 rounded">
               <div
-                className={`${barColor} h-2 rounded`}
+                className={`${barColor} h-2 rounded transition-all`}
                 style={{ width: `${percent}%` }}
               />
             </div>
@@ -124,14 +130,14 @@ export default function SetupRecoveryForm({
             {requirements.map(({ label, passed }) => (
               <li
                 key={label}
-                className={`flex items-center ${
+                className={`flex items-center transition-colors ${
                   passed ? "text-green-600" : "text-red-600"
                 }`}
               >
                 {passed ? (
-                  <Check className="mr-2 h-4 w-4" />
+                  <Check className="mr-2 h-4 w-4 transition-all" />
                 ) : (
-                  <X className="mr-2 h-4 w-4" />
+                  <X className="mr-2 h-4 w-4 transition-all" />
                 )}
                 {label}
               </li>
@@ -157,7 +163,6 @@ export default function SetupRecoveryForm({
             </button>
           </div>
 
-          {error && <p className="text-red-600 text-sm">{error}</p>}
 
           <Button type="submit" disabled={loading} className="w-full">
             {loading ? "Saving..." : "Save"}
