@@ -2355,6 +2355,20 @@ async def setRecoveryPhrase(payload: dict = Body(), request: Request = None,
             type=Type.ID,
         )
 
+        await conn.execute(
+            """
+            INSERT INTO user_kdf_params (user_id, iv, salt, kdf_params)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (user_id)
+            DO UPDATE SET iv=EXCLUDED.iv, salt=EXCLUDED.salt,
+              kdf_params=EXCLUDED.kdf_params, updated_at=now()
+            """,
+            user_id,
+            nonce,
+            salt,
+            json.dumps(params),
+        )
+
 
         await conn.execute(
             "INSERT INTO user_key (user_id, purpose, public_key) VALUES ($1,'sig',$2) ON CONFLICT (user_id, purpose) DO UPDATE SET public_key=EXCLUDED.public_key",
@@ -2392,9 +2406,17 @@ async def setRecoveryPhrase(payload: dict = Body(), request: Request = None,
 
 
 
-@app.get("/auth/recovery-params")
+@app.get("/auth/get-recovery-params")
 async def getRecoveryParams(email: str, conn: Connection = Depends(get_conn)):
-    # TODO: use "user_password" table instead
+    row = await conn.fetchrow(
+        """
+        SELECT u.id, p.salt, p.kdf_params
+          FROM "user" u
+          JOIN user_kdf_params p ON p.user_id = u.id
+         WHERE u.email=$1 AND u.is_deleted=FALSE
+        """,
+        email,
+    )
     if not row:
         raise HTTPException(status_code=404, detail="Not found")
     return {

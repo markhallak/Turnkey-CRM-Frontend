@@ -59,7 +59,7 @@ export default function LoginForm({
     setRecoverLoading(true);
     try {
       const res = await fetch(
-        `${serverUrl}/auth/recovery-params?email=${encodeURIComponent(email)}`
+        `${serverUrl}/auth/get-recovery-params?email=${encodeURIComponent(email)}`
       );
       if (!res.ok) throw new Error("params");
       const j = await res.json();
