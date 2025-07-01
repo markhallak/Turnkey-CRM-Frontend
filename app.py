@@ -26,7 +26,7 @@ from sqlalchemy import Table, Column, Integer, String, MetaData
 
 from CasbinAdapter import CasbinAdapter
 from constants import ASYNCPG_URL, SECRET_KEY, REDIS_URL, KMS_URL
-from util import isUUIDv4, createMagicLink, generateJwtRs256
+from util import isUUIDv4, createMagicLink, generateJwtRs256, decodeJwtRs256
 
 
 class SimpleUser:
@@ -257,6 +257,34 @@ async def getPublicKeyEndpoint(request: Request):
 @app.get("/auth/ed25519-public-key")
 async def getEd25519PublicKey(request: Request):
     return {"public_key": request.app.state.ed25519PublicKey}
+
+
+@app.get("/auth/validate-magic-link")
+async def validateMagicLink(token: str, request: Request, conn: Connection = Depends(get_conn)):
+    try:
+        payload = decodeJwtRs256(token, request.app.state.publicKey)
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid")
+
+    uuid_str = payload.get("uuid")
+    if not uuid_str or not await isUUIDv4(uuid_str):
+        raise HTTPException(status_code=400, detail="invalid")
+
+    row = await conn.fetchrow(
+        "SELECT consumed, expires_at FROM magic_link WHERE uuid=$1",
+        UUID(uuid_str),
+    )
+    if (
+        not row
+        or row["consumed"]
+        or row["expires_at"] < datetime.now(timezone.utc)
+    ):
+        raise HTTPException(status_code=400, detail="invalid")
+
+    return {
+        "userId": payload.get("userId"),
+        "username": payload.get("username"),
+    }
 
 
 async def uploadDocument(fileBlob: bytes) -> dict:
@@ -2299,6 +2327,25 @@ async def login(request: Request, payload: dict = Body(), conn: Connection = Dep
 @app.post("/auth/set-recovery-phrase")
 async def setRecoveryPhrase(payload: dict = Body(), request: Request = None,
                             conn: Connection = Depends(get_conn)):
+    token_str = payload.get("token")
+    if not token_str:
+        raise HTTPException(status_code=400, detail="missing token")
+    try:
+        token_payload = decodeJwtRs256(token_str, request.app.state.publicKey)
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid token")
+
+    link_uuid = token_payload.get("uuid")
+    if not link_uuid or not await isUUIDv4(link_uuid):
+        raise HTTPException(status_code=400, detail="invalid token")
+
+    row = await conn.fetchrow(
+        "SELECT consumed, expires_at FROM magic_link WHERE uuid=$1",
+        UUID(link_uuid),
+    )
+    if not row or row["consumed"] or row["expires_at"] < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="invalid token")
+
     # When called with encrypted data, finalize recovery setup
     if "clientPubKey" in payload:
         client_pub_b64 = payload.get("clientPubKey")
@@ -2385,6 +2432,7 @@ async def setRecoveryPhrase(payload: dict = Body(), request: Request = None,
         redis = request.app.state.redis
         await redis.sadd("active_jtis", jti)
         await redis.publish("jwt_updates", f"add:{jti}")
+        await conn.execute("UPDATE magic_link SET consumed=TRUE WHERE uuid=$1", UUID(link_uuid))
         next_payload = {
             "next_step": "/onboarding",
             "exp": int((datetime.now(timezone.utc) + timedelta(minutes=5)).timestamp()),

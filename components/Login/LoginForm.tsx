@@ -103,7 +103,10 @@ export default function LoginForm({
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (error || !email) return;
+    if (error || !email) {
+      toast({ description: error || "Email required", variant: "destructive" });
+      return;
+    }
     const priv = getClientPriv();
     if (!priv) {
       setShowRecovery(true);
@@ -136,7 +139,6 @@ export default function LoginForm({
                   placeholder="m@example.com"
                   required
                 />
-                {error && <span className="text-sm text-red-600">{error}</span>}
               </div>
 
               <Button type="submit" disabled={isDisabled} className="w-full">
