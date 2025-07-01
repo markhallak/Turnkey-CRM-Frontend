@@ -14,10 +14,22 @@ interface Props {
 
 export default function SetupRecoveryForm({ userId, username }: Props) {
   const [phrase, setPhrase] = React.useState("");
+  const [confirm, setConfirm] = React.useState("");
   const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (phrase !== confirm) {
+      setError("Phrases do not match");
+      return;
+    }
+    const words = phrase.trim().split(/\s+/);
+    if (phrase.length < 12 || words.length < 3) {
+      setError("Phrase is too weak");
+      return;
+    }
+    setError("");
     setLoading(true);
     try {
       const salt = crypto.getRandomValues(new Uint8Array(16));
@@ -33,21 +45,16 @@ export default function SetupRecoveryForm({ userId, username }: Props) {
       storeClientPriv(priv);
       const data = await encryptedPost<{ token: string }>("/auth/set-recovery-phrase", {
         userId,
-        recoveryPhrase: phrase,
+        digest: hashB64,
         salt: Buffer.from(salt).toString("base64"),
         kdfParams: Buffer.from(JSON.stringify(params)).toString("base64"),
       });
-      const cookieKey = document.cookie
-        .split("; ")
-        .find((c) => c.startsWith("publicKey="));
-      let rsaPub = cookieKey
-        ? decodeURIComponent(cookieKey.slice("publicKey=".length))
-        : null;
+      let rsaPub = localStorage.getItem("rsaPublicKey");
       if (!rsaPub) {
         const r = await fetch(`${serverUrl}/auth/public-key`);
         const j = await r.json();
         rsaPub = j.public_key;
-        document.cookie = `publicKey=${encodeURIComponent(rsaPub)}; path=/`;
+        localStorage.setItem("rsaPublicKey", rsaPub);
       }
       const key = await importSPKI(rsaPub!, "RS256");
       const { payload: pl } = await jwtVerify(data.token, key);
@@ -68,6 +75,11 @@ export default function SetupRecoveryForm({ userId, username }: Props) {
             <Label htmlFor="phrase">Recovery Phrase</Label>
             <Input id="phrase" value={phrase} onChange={(e) => setPhrase(e.target.value)} required />
           </div>
+          <div className="grid gap-2">
+            <Label htmlFor="confirm">Confirm Phrase</Label>
+            <Input id="confirm" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
+          </div>
+          {error && <p className="text-red-600 text-sm">{error}</p>}
           <Button type="submit" disabled={loading} className="w-full">
             {loading ? "Saving..." : "Save"}
           </Button>

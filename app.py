@@ -2333,36 +2333,31 @@ async def setRecoveryPhrase(payload: dict = Body(), request: Request = None,
             raise HTTPException(status_code=400, detail="Invalid data")
 
         user_id = j.get("userId")
-        recovery_phrase = j.get("recoveryPhrase")
+        digest_b64 = j.get("digest")
         salt_b64 = j.get("salt")
         params_b64 = j.get("kdfParams")
         if not user_id or not await isUUIDv4(user_id):
             raise HTTPException(status_code=400, detail="Invalid userId")
+        if not digest_b64:
+            raise HTTPException(status_code=400, detail="Missing digest")
 
         salt = base64.b64decode(salt_b64)
         params = json.loads(base64.b64decode(params_b64).decode())
-        digest = hash_secret_raw(
-            recovery_phrase.encode(),
-            salt,
-            time_cost=params.get("time", 2),
-            memory_cost=params.get("mem", 19 * 1024),
-            parallelism=params.get("parallelism", 1),
-            hash_len=params.get("hashLen", 32),
-            type=Type.ID,
-        )
+        digest = base64.b64decode(digest_b64)
 
         await conn.execute(
             """
-            INSERT INTO user_recovery_params (user_id, iv, salt, kdf_params)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO user_recovery_params (user_id, iv, salt, kdf_params, digest)
+            VALUES ($1, $2, $3, $4, $5)
             ON CONFLICT (user_id)
             DO UPDATE SET iv=EXCLUDED.iv, salt=EXCLUDED.salt,
-              kdf_params=EXCLUDED.kdf_params, updated_at=now()
+              kdf_params=EXCLUDED.kdf_params, digest=EXCLUDED.digest, updated_at=now()
             """,
             user_id,
             nonce,
             salt,
             json.dumps(params),
+            digest,
         )
 
 
@@ -2449,8 +2444,20 @@ async def updateClientKey(payload: dict = Body(), request: Request = None,
     except Exception:
         raise HTTPException(status_code=400, detail="Decrypt failed")
     user_id = j.get("userId")
+    digest_b64 = j.get("digest")
     if not user_id or not await isUUIDv4(user_id):
         raise HTTPException(status_code=400, detail="Invalid userId")
+    if not digest_b64:
+        raise HTTPException(status_code=400, detail="Missing digest")
+
+    digest = base64.b64decode(digest_b64)
+
+    row = await conn.fetchrow(
+        "SELECT digest FROM user_recovery_params WHERE user_id=$1",
+        user_id,
+    )
+    if not row or row["digest"] != digest:
+        raise HTTPException(status_code=403, detail="Invalid recovery phrase")
 
     await conn.execute(
         "INSERT INTO user_key (user_id, purpose, public_key) VALUES ($1,'sig',$2) ON CONFLICT (user_id, purpose) DO UPDATE SET public_key=EXCLUDED.public_key",
