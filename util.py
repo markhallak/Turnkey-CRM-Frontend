@@ -28,6 +28,8 @@ async def createMagicLink(
     expires_at = datetime.now(timezone.utc) + timedelta(hours=ttlHours)
     payload = {
         "uuid": str(new_uuid),
+        "userId": str(user_id),
+        "username": recipientEmail,
         "next_step": "setup_recovery",
         "exp": int(expires_at.timestamp()),
     }

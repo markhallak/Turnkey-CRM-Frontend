@@ -334,11 +334,11 @@ CREATE TRIGGER trg_new_magic_link_row
 """
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 10: PASSWORD
+# 10: CLIENT_PASSWORD
 # ──────────────────────────────────────────────────────────────────────────────
 
-PASSWORD = """
-CREATE TABLE IF NOT EXISTS password (
+CLIENT_PASSWORD = """
+CREATE TABLE IF NOT EXISTS client_password (
   user_id               UUID        PRIMARY KEY
     REFERENCES "user"(id) ON DELETE CASCADE,
   client_id             UUID        NOT NULL REFERENCES client(id) ON UPDATE CASCADE ON DELETE CASCADE,
@@ -908,7 +908,7 @@ async def create_tables():
             ("message_mention", MESSAGE_MENTION),
             ("magic_link", MAGIC_LINK),
             ("magic_link_listen_notify", MAGIC_LINK_LISTEN_NOTIFY),
-            ("password", PASSWORD),
+            ("client_password", CLIENT_PASSWORD),
             ("user_key", USER_KEY),
             ("jwt_token", JWT_TOKEN),
             ("insurance", INSURANCE),

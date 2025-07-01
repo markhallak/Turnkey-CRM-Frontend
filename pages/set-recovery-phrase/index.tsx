@@ -57,21 +57,9 @@ const imported = await importSPKI(pem, "RS256");
           return;
         }
 
-        // Call setup-recovery
-        const res = await fetch(
-          `${serverUrl}/auth/setup-recovery`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ token }),
-          }
-        );
-        console.log("RESPONSE: ", res);
-        if (!res.ok) throw new Error();
-        const data = await res.json();
         setInfo({
-          userId: data.userId,
-          username: data.username,
+          userId: payload.userId as string,
+          username: payload.username as string,
         });
       } catch (err) {
             console.error("verifyAndSetup failed:", err);
