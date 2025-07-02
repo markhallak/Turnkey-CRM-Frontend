@@ -1,11 +1,7 @@
 // lib/apiClient.ts
 import { serverUrl } from "./config";
-import {
-  edwardsToMontgomeryPriv,
-  edwardsToMontgomeryPub,
-  x25519,
-  ed25519
-} from "@noble/curves/ed25519";
+import nacl from "tweetnacl";
+import * as ed2curve from "ed2curve";
 
 let serverKey: Uint8Array | null = null;
 
@@ -50,9 +46,10 @@ export async function encryptedPost<T>(
   const serverPub = await fetchServerKey();
 
   // Convert Ed25519 → X25519 for ECDH
-  const xPriv = edwardsToMontgomeryPriv(priv);
-  const xPub = edwardsToMontgomeryPub(serverPub);
-  const shared = x25519.getSharedSecret(xPriv, xPub);
+  const edKeyPair = nacl.sign.keyPair.fromSeed(priv);
+  const { secretKey: clientCurvePriv } = ed2curve.convertKeyPair(edKeyPair);
+  const serverCurvePub = ed2curve.convertPublicKey(serverPub);
+  const shared = nacl.scalarMult(clientCurvePriv, serverCurvePub);
 
   // Encrypt payload with AES-GCM
   const nonce = crypto.getRandomValues(new Uint8Array(12));
@@ -71,7 +68,7 @@ export async function encryptedPost<T>(
   );
 
   // Build envelope
-  const clientPub = ed25519.getPublicKey(priv);
+  const clientPub = edKeyPair.publicKey;
   const body = {
     clientPubKey: Buffer.from(clientPub).toString("base64"),
     nonce: Buffer.from(nonce).toString("base64"),
