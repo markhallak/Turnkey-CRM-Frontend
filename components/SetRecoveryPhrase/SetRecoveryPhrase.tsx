@@ -59,7 +59,7 @@ export default function SetRecoveryPhrase({
       const data = await encryptedPost<{ token: string }>(
         "/auth/set-recovery-phrase",
         {
-          userId,
+          userEmail,
           token,
           digest: hashB64,
           salt: Buffer.from(salt).toString("base64"),

@@ -58,11 +58,11 @@ def getEnforcer(request: Request) -> SyncedEnforcer:
 async def authorize(request: Request, user: SimpleUser = Depends(getCurrentUser),
                     enforcer: SyncedEnforcer = Depends(getEnforcer)):
     path = request.url.path
-    #
-    # if not user.setup_done and not path.startswith("/auth") and path != "/set-recovery-phrase":
-    #     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Finish setup recovery")
-    # if user.setup_done and not user.onboarding_done and not path.startswith("/auth") and path != "/onboarding":
-    #     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Finish onboarding")
+
+    if not user.setup_done and not path.startswith("/auth") and path != "/set-recovery-phrase":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Finish setup recovery")
+    if user.setup_done and not user.onboarding_done and not path.startswith("/auth") and path != "/onboarding":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Finish onboarding")
 
     if not path.startswith("/auth"):
         sub = str(user.email)
@@ -2232,11 +2232,9 @@ async def inviteUser(
         hex_color,
         account_type.startswith("Client")
     )
-    user_id = row["id"]
 
     await createMagicLink(
         conn,
-        user_id,
         request.app.state.privateKey,
         purpose="signup",
         recipientEmail=email_to_invite,
@@ -2356,15 +2354,15 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
         raise HTTPException(status_code=400, detail="invalid token")
 
     # When called with encrypted data, finalize recovery setup
-    user_id = data.get("userId")
-    if user_id:
+    userEmail = data.get("userEmail")
+    if userEmail:
         digest_b64 = data.get("digest")
         salt_b64 = data.get("salt")
         params_b64 = data.get("kdfParams")
         iv = data.get("_nonce")
         clientPub = data.get("_client_pub")
-        if not user_id or not await isUUIDv4(user_id):
-            raise HTTPException(status_code=400, detail="Invalid userId")
+        if not userEmail:
+            raise HTTPException(status_code=400, detail="Missing user's email")
         if not digest_b64:
             raise HTTPException(status_code=400, detail="Missing digest")
 
@@ -2374,13 +2372,13 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
 
         await conn.execute(
             """
-            INSERT INTO user_recovery_params (user_id, iv, salt, kdf_params, digest)
+            INSERT INTO user_recovery_params (user_email, iv, salt, kdf_params, digest)
             VALUES ($1, $2, $3, $4, $5)
-            ON CONFLICT (user_id)
+            ON CONFLICT (user_email)
             DO UPDATE SET iv=EXCLUDED.iv, salt=EXCLUDED.salt,
               kdf_params=EXCLUDED.kdf_params, digest=EXCLUDED.digest, updated_at=now()
             """,
-            user_id,
+            userEmail,
             iv,
             salt,
             json.dumps(params),
@@ -2389,24 +2387,23 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
 
 
         await conn.execute(
-            "INSERT INTO user_key (user_id, purpose, public_key) VALUES ($1,'sig',$2) ON CONFLICT (user_id, purpose) DO UPDATE SET public_key=EXCLUDED.public_key",
-            user_id,
+            "INSERT INTO user_key (user_email, purpose, public_key) VALUES ($1,'sig',$2) ON CONFLICT (user_email, purpose) DO UPDATE SET public_key=EXCLUDED.public_key",
+            userEmail,
             clientPub,
         )
 
         await conn.execute(
-            "UPDATE \"user\" SET is_active=TRUE, has_set_recovery_phrase=TRUE WHERE id=$1",
-            user_id,
+            "UPDATE \"user\" SET is_active=TRUE, has_set_recovery_phrase=TRUE WHERE email=$1",
+            userEmail,
         )
 
-        email_row = await conn.fetchrow('SELECT email FROM "user" WHERE id=$1', user_id)
-        user_email = email_row["email"] if email_row else ""
+
         jti = str(uuid4())
         exp_dt = datetime.now(timezone.utc) + timedelta(minutes=5)
         await conn.execute(
             "INSERT INTO jwt_token (jti, user_email, expires_at, revoked) VALUES ($1,$2,$3,FALSE)",
             jti,
-            user_email,
+            userEmail,
             exp_dt,
         )
         redis = request.app.state.redis
@@ -2418,7 +2415,7 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
             "exp": int((datetime.now(timezone.utc) + timedelta(minutes=5)).timestamp()),
         }
         nav_token = generateJwtRs256(next_payload, request.app.state.privateKey)
-        session_token = jwt.encode({"sub": user_email, "jti": jti, "exp": exp_dt}, SECRET_KEY, algorithm="HS256")
+        session_token = jwt.encode({"sub": userEmail, "jti": jti, "exp": exp_dt}, SECRET_KEY, algorithm="HS256")
         response = JSONResponse({"token": nav_token})
         response.set_cookie("session", session_token, httponly=True, secure=True)
         return response
@@ -2431,7 +2428,7 @@ async def getRecoveryParams(email: str, conn: Connection = Depends(get_conn)):
         """
         SELECT u.id, p.salt, p.kdf_params
           FROM "user" u
-          JOIN user_recovery_params p ON p.user_id = u.id
+          JOIN user_recovery_params p ON p.user_email = u.email
          WHERE u.email=$1 AND u.is_deleted=FALSE
         """,
         email,
@@ -2450,25 +2447,25 @@ async def updateClientKey(request: Request, data: dict = Depends(decryptPayload(
                           conn: Connection = Depends(get_conn)):
     clientPub = data.get("_client_pub")
     iv = data.get("_nonce")
-    user_id = data.get("userId")
+    userEmail = data.get("userEmail")
     digest_b64 = data.get("digest")
-    if not user_id or not await isUUIDv4(user_id):
-        raise HTTPException(status_code=400, detail="Invalid userId")
+    if not userEmail:
+        raise HTTPException(status_code=400, detail="Missing user's email")
     if not digest_b64:
         raise HTTPException(status_code=400, detail="Missing digest")
 
     digest = base64.b64decode(digest_b64)
 
     row = await conn.fetchrow(
-        "SELECT digest FROM user_recovery_params WHERE user_id=$1",
-        user_id,
+        "SELECT digest FROM user_recovery_params WHERE user_email=$1",
+        userEmail,
     )
     if not row or row["digest"] != digest:
         raise HTTPException(status_code=403, detail="Invalid recovery phrase")
 
     await conn.execute(
-        "INSERT INTO user_key (user_id, purpose, public_key) VALUES ($1,'sig',$2) ON CONFLICT (user_id, purpose) DO UPDATE SET public_key=EXCLUDED.public_key",
-        user_id,
+        "INSERT INTO user_key (user_email, purpose, public_key) VALUES ($1,'sig',$2) ON CONFLICT (user_email, purpose) DO UPDATE SET public_key=EXCLUDED.public_key",
+        userEmail,
         clientPub,
     )
     return {"status": "ok"}
