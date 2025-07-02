@@ -28,9 +28,8 @@ async def createMagicLink(
     expires_at = datetime.now(timezone.utc) + timedelta(hours=ttlHours)
     payload = {
         "uuid": str(new_uuid),
-        "userId": str(user_id),
-        "username": recipientEmail,
-        "next_step": "setup_recovery",
+        "userEmail": recipientEmail,
+        "next_step": "set-recovery-phrase",
         "exp": int(expires_at.timestamp()),
     }
     token = generateJwtRs256(payload, private_key_pem)

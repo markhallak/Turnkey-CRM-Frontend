@@ -319,8 +319,7 @@ async def validateMagicLink(token: str, request: Request, conn: Connection = Dep
         raise HTTPException(status_code=400, detail="invalid")
 
     return {
-        "userId": payload.get("userId"),
-        "username": payload.get("username"),
+        "userEmail": payload.get("userEmail"),
     }
 
 

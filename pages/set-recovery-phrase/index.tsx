@@ -10,8 +10,7 @@ export default function SetRecoveryPhrasePage() {
   const { toast } = useToast();
   const { token } = router.query as { token?: string };
   const [info, setInfo] = useState<{
-    userId: string;
-    username: string;
+    userEmail: string;
   } | null>(null);
 
   useEffect(() => {
@@ -23,7 +22,7 @@ export default function SetRecoveryPhrasePage() {
         );
         if (!res.ok) throw new Error("validate");
         const j = await res.json();
-        setInfo({ userId: j.userId as string, username: j.username as string });
+        setInfo({ userEmail: j.userEmail as string });
       } catch (err) {
         console.error("verifyAndSetup failed:", err);
         toast({
@@ -43,8 +42,7 @@ export default function SetRecoveryPhrasePage() {
     <div className="flex min-h-screen flex-col items-center justify-center bg-muted p-6 md:p-10">
       <div className="w-full max-w-sm md:max-w-md">
         <SetRecoveryPhrase
-          userId={info.userId}
-          username={info.username}
+          userEmail={info.userEmail}
           token={token!}
         />
       </div>

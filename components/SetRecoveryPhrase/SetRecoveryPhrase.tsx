@@ -12,12 +12,10 @@ import { encryptedPost, storeClientPriv } from "@/lib/apiClient";
 import { useToast } from "@/hooks/use-toast";
 
 export default function SetRecoveryPhrase({
-  userId,
-  username,
+  userEmail,
   token,
 }: {
-  userId: string;
-  username: string;
+  userEmail: string;
   token: string;
 }) {
   const [phrase, setPhrase] = useState("");

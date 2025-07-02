@@ -17,7 +17,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       memoryCost: mem,
       parallelism,
       hashLength: hashLen,
-      raw: true,            // return Uint8Array like the Python backend
+      raw: true,
     });
     res.status(200).json({ hash: Buffer.from(hash).toString("base64") });
   } catch (err) {
