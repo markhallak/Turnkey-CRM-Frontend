@@ -113,12 +113,9 @@ def decryptPayload(includePublic: bool = False):
         except Exception:
             raise HTTPException(status_code=400, detail="Bad encoding")
         server_ed_priv = base64.b64decode(request.app.state.ed25519PrivateKey)
-        if includePublic:
-            server_ed_pub = base64.b64decode(request.app.state.ed25519PublicKey)
-            ed_secret = server_ed_priv + server_ed_pub
-            server_x_priv = nacl.bindings.crypto_sign_ed25519_sk_to_curve25519(ed_secret)
-        else:
-            server_x_priv = nacl.bindings.crypto_sign_ed25519_sk_to_curve25519(server_ed_priv)
+        server_ed_pub = base64.b64decode(request.app.state.ed25519PublicKey)
+        ed_secret = server_ed_priv + server_ed_pub
+        server_x_priv = nacl.bindings.crypto_sign_ed25519_sk_to_curve25519(ed_secret)
         client_x_pub = nacl.bindings.crypto_sign_ed25519_pk_to_curve25519(client_pub)
         shared = nacl.bindings.crypto_scalarmult(server_x_priv, client_x_pub)
         aesgcm = AESGCM(shared)
