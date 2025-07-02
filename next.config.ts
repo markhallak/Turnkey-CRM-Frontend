@@ -13,7 +13,6 @@ const nextConfig: NextConfig = {
     domains: ["images.squarespace-cdn.com"],
   },
   webpack: (config, { isServer }) => {
-    config.resolve.alias["@noble/ed25519"] = require.resolve("@noble/ed25519");
 
     // Inline any .wasm as base64 (for argon2-browser or other WASM modules)
     config.module.rules.push({
