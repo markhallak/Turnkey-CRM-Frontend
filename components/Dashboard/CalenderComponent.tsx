@@ -14,7 +14,7 @@ import { Button } from "../ui/button";
 import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { useSidebar } from "@/components/ui/sidebar";
 import { createPortal } from "react-dom";
-import type { CalendarEvent } from "@/lib/api";
+import type { CalendarEvent } from "@/components/Header";
 
 interface Props {
   events: CalendarEvent[];

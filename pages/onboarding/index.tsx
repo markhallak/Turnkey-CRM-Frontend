@@ -400,7 +400,7 @@ export function TradeInfoSection() {
     Record<string, { not: boolean; light: boolean; full: boolean }>
   >(
     Object.fromEntries(
-      trades.map((t) => [t, { not: false, light: false, full: false }])
+      trades.map((t) => [t, { not: true, light: false, full: false }])
     )
   );
 

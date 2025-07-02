@@ -1,6 +1,7 @@
 import { useRouter } from "next/router";
-import { useEffect } from "react";
-import { serverUrl } from "@/lib/config";
+import { useEffect, useState } from "react";
+import Loading from "@/components/Loading";
+import { encryptPost, decryptPost } from "@/lib/apiClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import Image from "next/image";
@@ -8,30 +9,27 @@ import Image from "next/image";
 export default function SignUpPage() {
   const router = useRouter();
   const { u, s } = router.query as { u?: string; s?: string };
+  const [verifying, setVerifying] = useState(true);
 
   useEffect(() => {
     if (!u || !s) return;
     const verify = async () => {
+      setVerifying(true);
       try {
-        const res = await fetch(`${serverUrl}/auth/signup`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ u, s }),
-          credentials: "include",
-        });
+        const res = await encryptPost("/auth/signup", { u, s });
         if (!res.ok) throw new Error("failed");
-        const d = await res.json();
-        router.replace(
-          `/set-recovery-phrase?userId=${d.userId}&username=${encodeURIComponent(
-            d.username
-          )}`
-        );
+        const d = await decryptPost<{ token: string }>(res);
+        router.replace(`/set-recovery-phrase?token=${encodeURIComponent(d.token)}`);
       } catch {
         router.replace("/auth/login");
+      } finally {
+        setVerifying(false);
       }
     };
     verify();
   }, [u, s, router]);
+
+  if (verifying) return <Loading />;
 
   return (
     <div className="flex min-h-svh flex-col items-center justify-center bg-muted p-6 md:p-10">

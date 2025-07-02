@@ -2,7 +2,8 @@
 import SetRecoveryPhrase from "@/components/SetRecoveryPhrase/SetRecoveryPhrase";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
-import { serverUrl } from "@/lib/config";
+import Loading from "@/components/Loading";
+import { encryptPost, decryptPost } from "@/lib/apiClient";
 import { useToast } from "@/hooks/use-toast";
 
 export default function SetRecoveryPhrasePage() {
@@ -17,12 +18,10 @@ export default function SetRecoveryPhrasePage() {
     const verifyAndSetup = async () => {
       if (!token) return;
       try {
-        const res = await fetch(
-          `${serverUrl}/auth/validate-magic-link?token=${encodeURIComponent(token)}`
-        );
+        const res = await encryptPost("/auth/validate-magic-link", { token });
         if (!res.ok) throw new Error("validate");
-        const j = await res.json();
-        setInfo({ userEmail: j.userEmail as string });
+        const j = await decryptPost<{ userEmail: string }>(res);
+        setInfo({ userEmail: j.userEmail });
       } catch (err) {
         console.error("verifyAndSetup failed:", err);
         toast({
@@ -36,7 +35,7 @@ export default function SetRecoveryPhrasePage() {
   }, [token, toast]);
 
   if (!token) return <p className="p-4">Missing token</p>;
-  if (!info) return <p className="p-4">Verifying link…</p>;
+  if (!info) return <Loading />;
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-muted p-6 md:p-10">

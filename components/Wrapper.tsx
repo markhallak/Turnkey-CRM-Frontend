@@ -10,7 +10,7 @@ import {
   getProfileDetails,
   type ProfileDetails,
   fetchWithRetry,
-} from "@/lib/api";
+} from "@/components/Header";
 
 interface IProps {
   children: React.ReactNode;
@@ -40,7 +40,7 @@ const Wrapper: FC<IProps> = ({ children, title, initialChildLoading = false }) =
     if (fetched.current) return;
     fetched.current = true;
 
-    const userId = process.env.NEXT_PUBLIC_DEFAULT_USER_ID ?? "";
+    const userEmail = process.env.NEXT_PUBLIC_DEFAULT_USER_EMAIL ?? "";
     const getColor = () => `#${Math.floor(Math.random() * 0xffffff)
       .toString(16)
       .padStart(6, "0")}`;
@@ -48,7 +48,7 @@ const Wrapper: FC<IProps> = ({ children, title, initialChildLoading = false }) =
     setChildLoading(true);
     Promise.allSettled([
       fetchWithRetry(() => getNotifications(10)),
-      fetchWithRetry(() => getProfileDetails(userId)),
+      fetchWithRetry(() => getProfileDetails(userEmail)),
     ])
       .then(([nRes, pRes]) => {
         const profile: ProfileDetails =

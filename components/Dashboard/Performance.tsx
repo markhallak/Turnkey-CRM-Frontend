@@ -1,7 +1,7 @@
 import React from "react";
 import CurrencyFormat from "react-currency-format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { DashboardMetrics } from "@/lib/api";
+import type { DashboardMetrics } from "@/components/Header";
 
 interface Props {
   metrics: DashboardMetrics | null;
