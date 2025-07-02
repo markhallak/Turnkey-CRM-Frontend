@@ -10,7 +10,8 @@ import { useRouter } from "next/router";
 import { serverUrl } from "@/lib/config";
 import Image from "next/image";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { encryptedPost, getClientPriv, storeClientPriv } from "@/lib/apiClient";
+import { encryptedPost } from "@/lib/apiClient";
+import { createClientKeys, loadClientKeys } from "@/lib/clientKeys";
 
 export default function LoginForm({
   className,
@@ -88,7 +89,7 @@ export default function LoginForm({
       });
       if (!resHash.ok) throw new Error("hash");
       const { hash: hashB64 } = await resHash.json();
-      storeClientPriv(Buffer.from(hashB64, "base64"));
+      await createClientKeys(Buffer.from(hashB64, "base64"));
       await encryptedPost("/auth/update-client-key", { userId: j.userId, digest: hashB64 });
       setShowRecovery(false);
       setPhrase("");
@@ -107,8 +108,8 @@ export default function LoginForm({
       toast({ description: error || "Email required", variant: "destructive" });
       return;
     }
-    const priv = getClientPriv();
-    if (!priv) {
+    const ok = await loadClientKeys();
+    if (!ok) {
       setShowRecovery(true);
       return;
     }

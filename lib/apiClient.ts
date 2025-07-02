@@ -2,6 +2,12 @@
 import { serverUrl } from "./config";
 import nacl from "tweetnacl";
 import * as ed2curve from "ed2curve";
+import {
+  loadClientKeys,
+  getEd25519PublicKey,
+  getX25519PrivateKey,
+  clearClientKeyStorage,
+} from "./clientKeys";
 
 async function fetchServerKey(): Promise<Uint8Array> {
   const res = await fetch(`${serverUrl}/auth/ed25519-public-key`);
@@ -15,53 +21,52 @@ async function fetchServerKey(): Promise<Uint8Array> {
   return Buffer.from(public_key, "base64");
 }
 
-export function getClientPriv(): Uint8Array | null {
-  if (typeof localStorage === "undefined") return null;
-  const b64 = localStorage.getItem("clientPrivKey");
-  return b64 ? Buffer.from(b64, "base64") : null;
-}
 
-export function storeClientPriv(key: Uint8Array) {
-  if (typeof localStorage !== "undefined") {
-    localStorage.setItem("clientPrivKey", Buffer.from(key).toString("base64"));
+export async function encryptedPost<T>(path: string, data: any): Promise<T> {
+  const hasKeys = await loadClientKeys();
+  if (!hasKeys) {
+    clearClientKeyStorage();
+    if (typeof document !== "undefined") {
+      document.cookie
+        .split(";")
+        .forEach((c) => (document.cookie = c.replace(/=.*/, "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/")));
+      window.location.href = "/auth/login";
+    }
+    throw new Error("missing client key");
   }
-}
 
-export async function encryptedPost<T>(
-  path: string,
-  data: any
-): Promise<T> {
-  const priv = getClientPriv();
-  if (!priv) throw new Error("missing client private key");
+  const clientPub = getEd25519PublicKey();
+  const x25519Priv = getX25519PrivateKey();
+  if (!clientPub || !x25519Priv) {
+    clearClientKeyStorage();
+    if (typeof window !== "undefined") window.location.href = "/auth/login";
+    throw new Error("missing client key data");
+  }
+
   const serverPub = await fetchServerKey();
-
-  // Convert Ed25519 → X25519 for ECDH
-  const edKeyPair = nacl.sign.keyPair.fromSeed(priv);
-  const { secretKey: clientCurvePriv } = ed2curve.convertKeyPair(edKeyPair);
   const serverCurvePub = ed2curve.convertPublicKey(serverPub);
-  const shared = nacl.scalarMult(clientCurvePriv, serverCurvePub);
+  const sharedSecret = nacl.scalarMult(x25519Priv, serverCurvePub);
 
   // Encrypt payload with AES-GCM
-  const nonce = crypto.getRandomValues(new Uint8Array(12));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
   const aesKey = await crypto.subtle.importKey(
     "raw",
-    shared,
+    sharedSecret,
     "AES-GCM",
     false,
     ["encrypt"]
   );
   const plain = new TextEncoder().encode(JSON.stringify(data));
   const cipherBuf = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv: nonce },
+    { name: "AES-GCM", iv: iv },
     aesKey,
     plain
   );
 
   // Build envelope
-  const clientPub = edKeyPair.publicKey;
   const body = {
     clientPubKey: Buffer.from(clientPub).toString("base64"),
-    nonce: Buffer.from(nonce).toString("base64"),
+    nonce: Buffer.from(iv).toString("base64"),
     ciphertext: Buffer.from(new Uint8Array(cipherBuf)).toString("base64"),
   };
 
@@ -85,7 +90,7 @@ export async function encryptedPost<T>(
   const respCipher = Buffer.from(resp.ciphertext, "base64");
   const aesDecKey = await crypto.subtle.importKey(
     "raw",
-    shared,
+    sharedSecret,
     "AES-GCM",
     false,
     ["decrypt"]

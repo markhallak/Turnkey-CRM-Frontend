@@ -101,33 +101,33 @@ def decryptPayload(includePublic: bool = False):
     async def _dep(payload: dict = Body(), request: Request = None):
         if "clientPubKey" not in payload:
             return payload
-        client_pub_b64 = payload.get("clientPubKey")
-        nonce_b64 = payload.get("nonce")
-        ct_b64 = payload.get("ciphertext")
-        if not client_pub_b64 or not nonce_b64 or not ct_b64:
+        clientPublicKeyB64 = payload.get("clientPubKey")
+        ivB64 = payload.get("nonce")
+        ciphertextB64 = payload.get("ciphertext")
+        if not clientPublicKeyB64 or not ivB64 or not ciphertextB64:
             raise HTTPException(status_code=400, detail="Invalid payload")
         try:
-            client_pub = base64.b64decode(client_pub_b64)
-            nonce = base64.b64decode(nonce_b64)
-            cipher = base64.b64decode(ct_b64)
+            clientPublicKey = base64.b64decode(clientPublicKeyB64)
+            iv = base64.b64decode(ivB64)
+            ciphertext = base64.b64decode(ciphertextB64)
         except Exception:
             raise HTTPException(status_code=400, detail="Bad encoding")
-        server_ed_priv = base64.b64decode(request.app.state.ed25519PrivateKey)
-        server_ed_pub = base64.b64decode(request.app.state.ed25519PublicKey)
-        ed_secret = server_ed_priv + server_ed_pub
-        server_x_priv = nacl.bindings.crypto_sign_ed25519_sk_to_curve25519(ed_secret)
-        client_x_pub = nacl.bindings.crypto_sign_ed25519_pk_to_curve25519(client_pub)
-        shared = nacl.bindings.crypto_scalarmult(server_x_priv, client_x_pub)
-        aesgcm = AESGCM(shared)
+        serverEdPriv = base64.b64decode(request.app.state.ed25519PrivateKey)
+        serverEdPub = base64.b64decode(request.app.state.ed25519PublicKey)
+        serverEdSecret = serverEdPriv + serverEdPub
+        serverCurvePriv = nacl.bindings.crypto_sign_ed25519_sk_to_curve25519(serverEdSecret)
+        clientCurvePub = nacl.bindings.crypto_sign_ed25519_pk_to_curve25519(clientPublicKey)
+        sharedSecret = nacl.bindings.crypto_scalarmult(serverCurvePriv, clientCurvePub)
+        aesGcm = AESGCM(sharedSecret)
         try:
-            data = aesgcm.decrypt(nonce, cipher, None)
+            data = aesGcm.decrypt(iv, ciphertext, None)
         except Exception:
             raise HTTPException(status_code=400, detail="Decrypt failed")
         try:
-            obj = json.loads(data.decode())
-            obj["_client_pub"] = client_pub
-            obj["_nonce"] = nonce
-            return obj
+            payloadObj = json.loads(data.decode())
+            payloadObj["_client_pub"] = clientPublicKey
+            payloadObj["_nonce"] = iv
+            return payloadObj
         except Exception:
             raise HTTPException(status_code=400, detail="Invalid data")
 
@@ -2361,8 +2361,8 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
         digest_b64 = data.get("digest")
         salt_b64 = data.get("salt")
         params_b64 = data.get("kdfParams")
-        nonce = data.get("_nonce")
-        client_pub = data.get("_client_pub")
+        iv = data.get("_nonce")
+        clientPub = data.get("_client_pub")
         if not user_id or not await isUUIDv4(user_id):
             raise HTTPException(status_code=400, detail="Invalid userId")
         if not digest_b64:
@@ -2381,7 +2381,7 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
               kdf_params=EXCLUDED.kdf_params, digest=EXCLUDED.digest, updated_at=now()
             """,
             user_id,
-            nonce,
+            iv,
             salt,
             json.dumps(params),
             digest,
@@ -2391,7 +2391,7 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
         await conn.execute(
             "INSERT INTO user_key (user_id, purpose, public_key) VALUES ($1,'sig',$2) ON CONFLICT (user_id, purpose) DO UPDATE SET public_key=EXCLUDED.public_key",
             user_id,
-            client_pub,
+            clientPub,
         )
 
         await conn.execute(
@@ -2448,8 +2448,8 @@ async def getRecoveryParams(email: str, conn: Connection = Depends(get_conn)):
 @app.post("/auth/update-client-key")
 async def updateClientKey(request: Request, data: dict = Depends(decryptPayload()),
                           conn: Connection = Depends(get_conn)):
-    client_pub = data.get("_client_pub")
-    nonce = data.get("_nonce")
+    clientPub = data.get("_client_pub")
+    iv = data.get("_nonce")
     user_id = data.get("userId")
     digest_b64 = data.get("digest")
     if not user_id or not await isUUIDv4(user_id):
@@ -2469,7 +2469,7 @@ async def updateClientKey(request: Request, data: dict = Depends(decryptPayload(
     await conn.execute(
         "INSERT INTO user_key (user_id, purpose, public_key) VALUES ($1,'sig',$2) ON CONFLICT (user_id, purpose) DO UPDATE SET public_key=EXCLUDED.public_key",
         user_id,
-        client_pub,
+        clientPub,
     )
     return {"status": "ok"}
 

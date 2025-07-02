@@ -8,7 +8,8 @@ import { Check, X, Eye, EyeOff } from "lucide-react";
 import { usePasswordStrength } from "@/hooks/usePasswordStrength";
 import { serverUrl } from "@/lib/config";
 import { importSPKI, jwtVerify, errors } from "jose";
-import { encryptedPost, storeClientPriv } from "@/lib/apiClient";
+import { encryptedPost } from "@/lib/apiClient";
+import { createClientKeys } from "@/lib/clientKeys";
 import { useToast } from "@/hooks/use-toast";
 
 export default function SetRecoveryPhrase({
@@ -53,8 +54,8 @@ export default function SetRecoveryPhrase({
       });
       if (!resHash.ok) throw new Error("hash");
       const { hash: hashB64 } = await resHash.json();
-      const priv = Buffer.from(hashB64, "base64");
-      storeClientPriv(priv);
+      const seed = Buffer.from(hashB64, "base64");
+      await createClientKeys(seed);
       const data = await encryptedPost<{ token: string }>(
         "/auth/set-recovery-phrase",
         {
