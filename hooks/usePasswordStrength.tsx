@@ -1,6 +1,6 @@
 // hooks/usePasswordStrength.ts
 import { useState, useEffect } from "react";
-
+// import "noble/ed25519";
 export interface PasswordRequirement {
   label: string;
   passed: boolean;
