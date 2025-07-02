@@ -59,10 +59,10 @@ async def authorize(request: Request, user: SimpleUser = Depends(getCurrentUser)
                     enforcer: SyncedEnforcer = Depends(getEnforcer)):
     path = request.url.path
 
-    if not user.setup_done and not path.startswith("/auth") and path != "/set-recovery-phrase":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Finish setup recovery")
-    if user.setup_done and not user.onboarding_done and not path.startswith("/auth") and path != "/onboarding":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Finish onboarding")
+    # if not user.setup_done and not path.startswith("/auth") and path != "/set-recovery-phrase":
+    #     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Finish setup recovery")
+    # if user.setup_done and not user.onboarding_done and not path.startswith("/auth") and path != "/onboarding":
+    #     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Finish onboarding")
 
     if not path.startswith("/auth"):
         sub = str(user.email)
@@ -2223,7 +2223,7 @@ async def inviteUser(
         raise HTTPException(status_code=400, detail="Invalid account type")
 
     hex_color = f"#{random.randint(0, 0xFFFFFF):06x}"
-    row = await conn.fetchrow(
+    await conn.fetchrow(
         "INSERT INTO \"user\" (email, first_name, last_name, hex_color, is_active, is_client) "
         "VALUES ($1,$2,$3,$4,FALSE,$5) RETURNING id",
         email_to_invite,
