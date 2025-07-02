@@ -3,26 +3,16 @@ import { serverUrl } from "./config";
 import nacl from "tweetnacl";
 import * as ed2curve from "ed2curve";
 
-let serverKey: Uint8Array | null = null;
-
 async function fetchServerKey(): Promise<Uint8Array> {
-  if (serverKey) return serverKey;
-  const cached =
-    typeof localStorage !== "undefined" && localStorage.getItem("ed25519PublicKey");
-  if (cached) {
-    serverKey = Buffer.from(cached, "base64");
-    return serverKey;
-  }
   const res = await fetch(`${serverUrl}/auth/ed25519-public-key`);
   if (!res.ok) {
     throw new Error(`failed to fetch server public key: ${res.status}`);
   }
   const { public_key } = await res.json();
-  serverKey = Buffer.from(public_key, "base64");
   if (typeof localStorage !== "undefined") {
     localStorage.setItem("ed25519PublicKey", public_key);
   }
-  return serverKey;
+  return Buffer.from(public_key, "base64");
 }
 
 export function getClientPriv(): Uint8Array | null {
