@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Check, X, Eye, EyeOff } from "lucide-react";
 import { usePasswordStrength } from "@/hooks/usePasswordStrength";
 import { serverUrl } from "@/lib/config";
-import { importSPKI, jwtVerify } from "jose";
+import { importSPKI, jwtVerify, errors } from "jose";
 import { encryptedPost, storeClientPriv } from "@/lib/apiClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -74,9 +74,23 @@ export default function SetRecoveryPhrase({
         rsaPub = j.public_key;
         localStorage.setItem("rsaPublicKey", rsaPub);
       }
-      const key = await importSPKI(rsaPub!, "RS256");
-      const { payload: pl } = await jwtVerify(data.token, key);
-      window.location.href = pl.next_step as string;
+      let key = await importSPKI(rsaPub!, "RS256");
+      let payload;
+      try {
+        ({ payload } = await jwtVerify(data.token, key));
+      } catch (err) {
+        if (err instanceof errors.JWSSignatureVerificationFailed) {
+          const r = await fetch(`${serverUrl}/auth/public-key`);
+          const j = await r.json();
+          rsaPub = j.public_key;
+          localStorage.setItem("rsaPublicKey", rsaPub);
+          key = await importSPKI(rsaPub, "RS256");
+          ({ payload } = await jwtVerify(data.token, key));
+        } else {
+          throw err;
+        }
+      }
+      window.location.href = payload.next_step as string;
     } finally {
       setLoading(false);
     }
