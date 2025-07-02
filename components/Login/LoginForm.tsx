@@ -7,10 +7,9 @@ import * as React from "react";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/router";
-import { serverUrl } from "@/lib/config";
 import Image from "next/image";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { encryptedPost } from "@/lib/apiClient";
+import { encryptPost, decryptPost } from "@/lib/apiClient";
 import { createClientKeys, loadClientKeys } from "@/lib/clientKeys";
 
 export default function LoginForm({
@@ -47,7 +46,8 @@ export default function LoginForm({
     }
     setLoading(true);
     try {
-      await encryptedPost("/auth/login", { email });
+      const r = await encryptPost("/auth/login", { email });
+      await decryptPost(r);
       toast({ description: "Check your email for a login link." });
     } catch (err: any) {
       const msg = typeof err.message === "string" ? err.message : "";
@@ -72,15 +72,13 @@ export default function LoginForm({
     }
     setRecoverLoading(true);
     try {
-      const res = await fetch(
-        `${serverUrl}/auth/get-recovery-params?email=${encodeURIComponent(email)}`
-      );
+      const res = await encryptPost("/auth/get-recovery-params", { email });
       if (res.status === 404) {
         toast({ description: "Account not found", variant: "destructive" });
         return;
       }
       if (!res.ok) throw new Error("params");
-      const j = await res.json();
+      const j = await decryptPost(res);
       const params = JSON.parse(Buffer.from(j.kdfParams, "base64").toString());
       const resHash = await fetch("/api/argon-hash", {
         method: "POST",
@@ -90,7 +88,8 @@ export default function LoginForm({
       if (!resHash.ok) throw new Error("hash");
       const { hash: hashB64 } = await resHash.json();
       await createClientKeys(Buffer.from(hashB64, "base64"));
-      await encryptedPost("/auth/update-client-key", { userId: j.userId, digest: hashB64 });
+      const up = await encryptPost("/auth/update-client-key", { userId: j.userId, digest: hashB64 });
+      await decryptPost(up);
       setShowRecovery(false);
       setPhrase("");
       await sendLogin();

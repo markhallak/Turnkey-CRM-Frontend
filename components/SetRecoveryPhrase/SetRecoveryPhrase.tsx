@@ -6,9 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Check, X, Eye, EyeOff } from "lucide-react";
 import { usePasswordStrength } from "@/hooks/usePasswordStrength";
-import { serverUrl } from "@/lib/config";
 import { importSPKI, jwtVerify, errors } from "jose";
-import { encryptedPost } from "@/lib/apiClient";
+import { encryptPost, decryptPost } from "@/lib/apiClient";
 import { createClientKeys } from "@/lib/clientKeys";
 import { useToast } from "@/hooks/use-toast";
 
@@ -56,20 +55,18 @@ export default function SetRecoveryPhrase({
       const { hash: hashB64 } = await resHash.json();
       const seed = Buffer.from(hashB64, "base64");
       await createClientKeys(seed);
-      const data = await encryptedPost<{ token: string }>(
-        "/auth/set-recovery-phrase",
-        {
-          userEmail,
-          token,
-          digest: hashB64,
-          salt: Buffer.from(salt).toString("base64"),
-          kdfParams: Buffer.from(JSON.stringify(params)).toString("base64"),
-        }
-      );
+      const resp = await encryptPost("/auth/set-recovery-phrase", {
+        userEmail,
+        token,
+        digest: hashB64,
+        salt: Buffer.from(salt).toString("base64"),
+        kdfParams: Buffer.from(JSON.stringify(params)).toString("base64"),
+      });
+      const data = await decryptPost<{ token: string }>(resp);
       let rsaPub = localStorage.getItem("rsaPublicKey");
       if (!rsaPub) {
-        const r = await fetch(`${serverUrl}/auth/public-key`);
-        const j = await r.json();
+        const r = await encryptPost("/auth/public-key", {});
+        const j = await decryptPost<{ public_key: string }>(r);
         rsaPub = j.public_key;
         localStorage.setItem("rsaPublicKey", rsaPub);
       }
@@ -79,8 +76,8 @@ export default function SetRecoveryPhrase({
         ({ payload } = await jwtVerify(data.token, key));
       } catch (err) {
         if (err instanceof errors.JWSSignatureVerificationFailed) {
-          const r = await fetch(`${serverUrl}/auth/public-key`);
-          const j = await r.json();
+          const r = await encryptPost("/auth/public-key", {});
+          const j = await decryptPost<{ public_key: string }>(r);
           rsaPub = j.public_key;
           localStorage.setItem("rsaPublicKey", rsaPub);
           key = await importSPKI(rsaPub, "RS256");

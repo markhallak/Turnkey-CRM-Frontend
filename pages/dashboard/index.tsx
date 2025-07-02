@@ -11,7 +11,7 @@ import {
   type CalendarEvent,
   type DashboardMetrics,
   fetchWithRetry,
-} from "@/lib/api";
+} from "@/components/Header";
 import { useWrapperData } from "@/lib/wrapperContext";
 
 function DashboardContent() {

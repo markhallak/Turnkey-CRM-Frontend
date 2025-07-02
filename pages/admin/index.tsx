@@ -37,7 +37,7 @@ import {
   Trash2,
   Plus,
 } from "lucide-react";
-import { serverUrl } from "@/lib/config";
+import { encryptPost, decryptPost } from "@/lib/apiClient";
 import {
   Select,
   SelectTrigger,
@@ -140,7 +140,15 @@ function GenericTable({ config }: { config: TableConfig }) {
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => handleInvite(row.original.email, row.original.user_type)}
+              onClick={() =>
+                handleInvite(
+                  row.original.email,
+                  row.original.user_type,
+                  row.original.first_name,
+                  row.original.last_name,
+                  row.original.assign_to
+                )
+              }
             >
               Invite
             </Button>
@@ -172,7 +180,7 @@ function GenericTable({ config }: { config: TableConfig }) {
       const newItem = { ...form, id: Date.now().toString() };
       setData([...data, newItem]);
       if (config.name === "User") {
-        handleInvite(form.email, form.user_type);
+        handleInvite(form.email, form.user_type, form.first_name, form.last_name, form.assign_to);
       }
     }
     setIsNewOpen(false);
@@ -184,13 +192,22 @@ function GenericTable({ config }: { config: TableConfig }) {
     setIsDeleteOpen(false);
   };
 
-  const handleInvite = async (email: string, accountType: string) => {
+  const handleInvite = async (
+    email: string,
+    accountType: string,
+    firstName?: string,
+    lastName?: string,
+    assignTo?: string
+  ) => {
     try {
-      await fetch(`${serverUrl}/auth/invite`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emailToInvite: email, accountType }),
+      const res = await encryptPost("/auth/invite", {
+        emailToInvite: email,
+        accountType,
+        firstName,
+        lastName,
+        assignTo,
       });
+      await decryptPost(res);
     } catch (err) {
       console.error(err);
     }
@@ -545,6 +562,7 @@ export default function AdminPage() {
         ...cfg,
         fields: [
           ...cfg.fields,
+          { key: "assign_to", header: "Assign Client Admin" },
           {
             key: "user_type",
             header: "User Type",
@@ -555,6 +573,7 @@ export default function AdminPage() {
         data: cfg.data.map((item) => ({
           ...item,
           user_type: userTypeOptions[0],
+          assign_to: "",
         })),
       };
     }

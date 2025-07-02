@@ -22,7 +22,7 @@ async function fetchServerKey(): Promise<Uint8Array> {
 }
 
 
-export async function encryptedPost<T>(path: string, data: any): Promise<T> {
+export async function encryptPost(path: string, data: any): Promise<Response> {
   const hasKeys = await loadClientKeys();
   if (!hasKeys) {
     clearClientKeyStorage();
@@ -75,32 +75,58 @@ export async function encryptedPost<T>(path: string, data: any): Promise<T> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    credentials: "include",
   });
+  return res;
+}
+
+export async function decryptPost<T>(res: Response): Promise<T> {
   if (!res.ok) {
+    if (res.status === 403) {
+      try {
+        const j = await res.clone().json();
+        const detail = j.detail as string | undefined;
+        if (detail === "set-recovery-phrase" || detail === "onboarding") {
+          window.location.href = `/${detail}`;
+          throw new Error("redirect");
+        }
+      } catch {}
+    }
     const text = await res.text().catch(() => `status ${res.status}`);
     throw new Error(text);
   }
-
-  // Decrypt response if needed
-  const resp = await res.json();
-  if (!resp.ciphertext) {
-    return resp as T;
+  const json = await res.json();
+  if (!json.ciphertext) {
+    return json as T;
   }
-  const respNonce = Buffer.from(resp.nonce, "base64");
-  const respCipher = Buffer.from(resp.ciphertext, "base64");
-  const aesDecKey = await crypto.subtle.importKey(
+
+  const ok = await loadClientKeys();
+  if (!ok) {
+    clearClientKeyStorage();
+    if (typeof window !== "undefined") window.location.href = "/auth/login";
+    throw new Error("missing client key");
+  }
+
+  const serverPub = await fetchServerKey();
+  const xPriv = getX25519PrivateKey();
+  if (!xPriv) {
+    clearClientKeyStorage();
+    if (typeof window !== "undefined") window.location.href = "/auth/login";
+    throw new Error("missing client key data");
+  }
+  const serverCurvePub = ed2curve.convertPublicKey(serverPub);
+  const shared = nacl.scalarMult(xPriv, serverCurvePub);
+  const aesKey = await crypto.subtle.importKey(
     "raw",
-    sharedSecret,
+    shared,
     "AES-GCM",
     false,
     ["decrypt"]
   );
-  const decBuf = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: respNonce },
-    aesDecKey,
-    respCipher
-  );
-  return JSON.parse(new TextDecoder().decode(decBuf)) as T;
+  const nonce = Buffer.from(json.nonce, "base64");
+  const cipher = Buffer.from(json.ciphertext, "base64");
+  const buf = await crypto.subtle.decrypt({ name: "AES-GCM", iv: nonce }, aesKey, cipher);
+  return JSON.parse(new TextDecoder().decode(buf)) as T;
 }
 
 export { fetchServerKey };
