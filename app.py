@@ -40,17 +40,37 @@ class SimpleUser:
 
 
 async def getCurrentUser(request: Request) -> SimpleUser | None:
-    email = request.headers.get("x-user-email", None)
+    token = request.cookies.get("session")
+    if not token:
+        return None
+    try:
+        data = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+    except Exception:
+        return None
 
-    if email:
-        async with request.app.state.db_pool.acquire() as conn:
-            row = await conn.fetchrow(
-                "SELECT id, has_set_recovery_phrase, onboarding_done FROM \"user\" WHERE email=$1",
-                email,
-            )
-        if row:
-            return SimpleUser(row["id"], email, row["has_set_recovery_phrase"], row["onboarding_done"],
-                              row["is_client"])
+    jti = data.get("jti")
+    email = data.get("sub")
+    if not jti or not email:
+        return None
+    redis = request.app.state.redis
+    if not await redis.sismember("active_jtis", jti):
+        return None
+    if await redis.sismember("blacklisted_users", email):
+        return None
+
+    async with request.app.state.db_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id, has_set_recovery_phrase, onboarding_done, is_client FROM \"user\" WHERE email=$1",
+            email,
+        )
+    if row:
+        return SimpleUser(
+            row["id"],
+            email,
+            row["has_set_recovery_phrase"],
+            row["onboarding_done"],
+            row["is_client"],
+        )
     return None
 
 

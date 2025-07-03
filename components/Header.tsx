@@ -119,10 +119,9 @@ export async function getNotifications(
   } as NotificationsResponse;
 }
 
-export async function getProfileDetails(userEmail: string) {
+export async function getProfileDetails() {
   const data = await fetchJson<{ first_name: string; hex_color: string }>(
-    "/get-profile-details",
-    { email: userEmail }
+    "/get-profile-details"
   );
 
   return { firstName: data.first_name, hexColor: data.hex_color };
