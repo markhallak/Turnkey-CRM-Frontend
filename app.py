@@ -2497,7 +2497,7 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
     secure=False,          # fine for http:// during local dev
     samesite="lax",        # default, but spell it out
     path="/",
-    max_age=60 * 60 * 24)
+    max_age=60 * 60 * 72)
 
         return response
 
