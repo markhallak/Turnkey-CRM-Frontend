@@ -86,7 +86,26 @@ async def authorize(request: Request, user: SimpleUser = Depends(getCurrentUser)
                     enforcer: SyncedEnforcer = Depends(getEnforcer)):
     path = request.url.path
 
-    if not BYPASS_SESSION:
+
+
+    if not BYPASS_SESSION and not path.startswith("/auth/ed25519") and not path.startswith("/auth/public-key"):
+        perms = enforcer.get_policy()  # [[sub, dom, obj, act], …]
+
+        # 2. every “g” (role-mapping) rule it knows
+        groups = enforcer.get_grouping_policy()  # [[sub, role, dom], …]
+
+        # 3. the roles this particular user has in the “*” domain
+        roles = enforcer.get_roles_for_user_in_domain(user.email, "*")
+
+        # 4. all permissions this user already enjoys
+        user_perms = enforcer.get_permissions_for_user(user.email, "*")
+
+        # put whatever logger you use here
+        print("PERM RULES:", perms)
+        print("GROUP RULES:", groups)
+        print("ROLES FOR", user.email, ":", roles)
+        print("PERMS FOR", user.email, ":", user_perms)
+
         if not user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="unauthenticated")
         if not user.setup_done and path != "/set-recovery-phrase":
@@ -2483,7 +2502,14 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
         if clientPub is not None:
             payload = encryptForClient(payload, clientPub, request.app)
         response = JSONResponse(payload)
-        response.set_cookie("session", session_token, httponly=True, secure=False)
+        response.set_cookie("session",
+    session_token,
+    httponly=True,
+    secure=False,          # fine for http:// during local dev
+    samesite="lax",        # default, but spell it out
+    path="/",
+    max_age=60 * 60 * 24)
+
         return response
 
 
