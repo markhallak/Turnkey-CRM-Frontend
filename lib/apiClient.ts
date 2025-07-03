@@ -11,12 +11,13 @@ import {
 
 async function fetchServerKey(): Promise<Uint8Array> {
   const res = await fetch(`${serverUrl}/auth/ed25519-public-key`, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({}),
-});
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({}),
+    credentials: "include",
+  });
 
   if (!res.ok) {
     throw new Error(`failed to fetch server public key: ${res.status}`);
@@ -36,14 +37,19 @@ async function encryptRequest(
 ): Promise<Response> {
   const hasKeys = await loadClientKeys();
   if (!hasKeys) {
-    clearClientKeyStorage();
-    if (typeof document !== "undefined") {
-      document.cookie
-        .split(";")
-        .forEach((c) => (document.cookie = c.replace(/=.*/, "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/")));
+    const isAuthRequest = path.startsWith("/auth/");
+    if (!isAuthRequest && typeof document !== "undefined") {
+      document.cookie =
+        "session=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
       window.location.href = "/auth/login";
+      throw new Error("missing client key");
     }
-    throw new Error("missing client key");
+    return fetch(`${serverUrl}${path}`, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+      credentials: "include",
+    });
   }
 
   const clientPub = getEd25519PublicKey();
