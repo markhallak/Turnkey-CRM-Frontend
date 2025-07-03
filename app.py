@@ -42,12 +42,16 @@ class SimpleUser:
 
 async def getCurrentUser(request: Request) -> SimpleUser | None:
     token = request.cookies.get("session")
+    print("TOKEN: ", token)
     if not token:
         return None
     try:
         data = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-    except Exception:
+    except Exception as e:
+        print("EXCEPTION: ", e)
         return None
+
+    print("DATA: ", data)
 
     jti = data.get("jti")
     email = data.get("sub")
@@ -64,14 +68,14 @@ async def getCurrentUser(request: Request) -> SimpleUser | None:
             "SELECT id, has_set_recovery_phrase, onboarding_done, is_client FROM \"user\" WHERE email=$1",
             email,
         )
-    if row:
-        return SimpleUser(
-            row["id"],
-            email,
-            row["has_set_recovery_phrase"],
-            row["onboarding_done"],
-            row["is_client"],
-        )
+        if row:
+            return SimpleUser(
+                row["id"],
+                email,
+                row["has_set_recovery_phrase"],
+                row["onboarding_done"],
+                row["is_client"],
+            )
     return None
 
 
@@ -79,22 +83,21 @@ def getEnforcer(request: Request) -> SyncedEnforcer:
     return request.app.state.enforcer
 
 
-BYPASS_SESSION = False
+BYPASS_SESSION = True
 
 
 async def authorize(request: Request, user: SimpleUser = Depends(getCurrentUser),
                     enforcer: SyncedEnforcer = Depends(getEnforcer)):
     path = request.url.path
 
-
-
     if (
-        not BYPASS_SESSION
-        and not path.startswith("/auth/ed25519")
-        and not path.startswith("/auth/public-key")
-        and not path.startswith("/auth/login")
-        and not path.startswith("/auth/validate-signup-token")
-        and not path.startswith("/auth/validate-login-token")
+            not BYPASS_SESSION
+            and not path.startswith("/auth/ed25519")
+            and not path.startswith("/auth/public-key")
+            and not path.startswith("/auth/login")
+            and not path.startswith("/auth/validate-signup-token")
+            and not path.startswith("/auth/validate-login-token")
+            and not path.startswith("/auth/me")
     ):
         perms = enforcer.get_policy()  # [[sub, dom, obj, act], …]
 
@@ -178,6 +181,7 @@ def encryptForClient(data: dict, client_pub: bytes, app: FastAPI) -> dict:
     shared = nacl.bindings.crypto_scalarmult(server_curve_priv, client_curve_pub)
     aes = AESGCM(shared)
     iv = os.urandom(12)
+
     def defaultEncoder(o):
         if isinstance(o, Decimal):
             return float(o)
@@ -351,9 +355,25 @@ async def getEd25519PublicKey(request: Request):
     return {"public_key": request.app.state.ed25519PublicKey}
 
 
+@app.get("/auth/me")
+async def whoami(user: SimpleUser = Depends(getCurrentUser)):
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="unauthenticated",
+        )
+
+    return {
+        "email": user.email,
+        "setup_done": user.setup_done,
+        "onboarding_done": user.onboarding_done,
+        "is_client": user.is_client
+    }
+
+
 @app.post("/auth/validate-signup-token")
 async def validateSignupToken(request: Request, data: dict = Depends(decryptPayload()),
-                            conn: Connection = Depends(get_conn)):
+                              conn: Connection = Depends(get_conn)):
     token = data.get("token")
 
     try:
@@ -383,10 +403,10 @@ async def validateSignupToken(request: Request, data: dict = Depends(decryptPayl
 
 @app.post("/auth/validate-login-token")
 async def validateLoginToken(
-    request: Request,
-    data: dict = Depends(decryptPayload()),
-    conn: Connection = Depends(get_conn),
-    enforcer: SyncedEnforcer = Depends(getEnforcer),
+        request: Request,
+        data: dict = Depends(decryptPayload()),
+        conn: Connection = Depends(get_conn),
+        enforcer: SyncedEnforcer = Depends(getEnforcer),
 ):
     token_str = data.get("token")
     try:
@@ -419,17 +439,10 @@ async def validateLoginToken(
     await redis.publish("jwt_updates", f"add:{jti}")
     await conn.execute("UPDATE magic_link SET consumed=TRUE WHERE uuid=$1", UUID(link_uuid))
 
-    roles = enforcer.get_roles_for_user_in_domain(userEmail, "*")
-    if "client_admin" in roles:
-        next_payload = {
-            "next_step": "/onboarding",
-            "exp": int((datetime.now(timezone.utc) + timedelta(minutes=5)).timestamp()),
-        }
-    else:
-        next_payload = {
-            "next_step": "/dashboard",
-            "exp": int((datetime.now(timezone.utc) + timedelta(minutes=5)).timestamp()),
-        }
+    next_payload = {
+        "next_step": "/dashboard",
+        "exp": int((datetime.now(timezone.utc) + timedelta(minutes=5)).timestamp()),
+    }
     nav_token = generateJwtRs256(next_payload, request.app.state.privateKey)
     session_token = jwt.encode({"sub": userEmail, "jti": jti, "exp": exp_dt}, SECRET_KEY, algorithm="HS256")
     response = JSONResponse({"token": nav_token})
@@ -548,7 +561,8 @@ async def getProfileDetails(
         user: SimpleUser = Depends(getCurrentUser),
         conn: Connection = Depends(get_conn)
 ):
-    email = user.email if user else data.get("userEmail")
+    print("USER GET PROFILE DETAILS: ", user)
+    email = user.email if user else None
     if not email:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="unauthenticated")
 
@@ -2563,12 +2577,12 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
             payload = encryptForClient(payload, clientPub, request.app)
         response = JSONResponse(payload)
         response.set_cookie("session",
-    session_token,
-    httponly=True,
-    secure=False,          # fine for http:// during local dev
-    samesite="lax",        # default, but spell it out
-    path="/",
-    max_age=60 * 60 * 72)
+                            session_token,
+                            httponly=True,
+                            secure=False,  # fine for http:// during local dev
+                            samesite="none",  # default, but spell it out
+                            path="/",
+                            max_age=60 * 60 * 72)
 
         return response
 

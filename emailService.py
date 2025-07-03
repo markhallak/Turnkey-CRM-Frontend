@@ -289,7 +289,7 @@ async def handle_magic_link(connection, pid, channel, payload):
                             <p>Dear User,</p>
                             <p>Click the button below to sign in to your account. This link will expire within <strong>24 hours</strong>.</p>
                             <div class="button-container">
-                              <a href="{link}" target="_blank" rel="noopener noreferrer" class="btn">Sign up Now</a>
+                              <a href="{link}" target="_blank" rel="noopener noreferrer" class="btn">Sign In</a>
                             </div>
                             <p>If the button doesn’t work, copy and paste the following URL into your browser:</p>
                             <p><a href="{link}" target="_blank" rel="noopener noreferrer" style="color:#4a90e2; word-break:break-all;">{link}</a></p>

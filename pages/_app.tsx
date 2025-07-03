@@ -61,10 +61,13 @@ export default function App({ Component, pageProps }: AppProps) {
       if (path === "/auth/login" || path === "/set-recovery-phrase") return;
       let hasSession = false;
       try {
-        const res = await fetch("/auth/me");
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL }/auth/me`);
         hasSession = res.status === 200;
       } catch {}
       const hasKeys = await loadClientKeys();
+      console.log("HAS KEYS: ", hasKeys);
+      console.log("HAS SESSION: ", hasSession)
+      console.log("COOKIES: ", document.cookie);
       if (!hasSession || !hasKeys) {
         router.replace("/auth/login");
       }
