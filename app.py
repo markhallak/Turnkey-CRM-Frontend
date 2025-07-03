@@ -446,6 +446,7 @@ async def validateLoginToken(
     nav_token = generateJwtRs256(next_payload, request.app.state.privateKey)
     session_token = jwt.encode({"sub": userEmail, "jti": jti, "exp": exp_dt}, SECRET_KEY, algorithm="HS256")
     response = JSONResponse({"token": nav_token})
+    response.delete_cookie("session", path="/")
     response.set_cookie(
         "session",
         session_token,
@@ -2576,6 +2577,7 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
         if clientPub is not None:
             payload = encryptForClient(payload, clientPub, request.app)
         response = JSONResponse(payload)
+        response.delete_cookie("session", path="/")
         response.set_cookie("session",
                             session_token,
                             httponly=True,
@@ -2667,6 +2669,31 @@ async def revokeToken(request: Request, conn: Connection = Depends(get_conn)):
     await redis.publish("jwt_updates", f"remove:{jti}")
     resp = JSONResponse({"status": "revoked"})
     resp.delete_cookie("session")
+    return resp
+
+
+@app.post("/auth/refresh-session")
+async def refreshSession(request: Request, conn: Connection = Depends(get_conn)):
+    token = request.cookies.get("session")
+    if not token:
+        raise HTTPException(status_code=401, detail="no token")
+    try:
+        data = jwt.decode(token, SECRET_KEY, algorithms=["HS256"], options={"verify_exp": False})
+    except Exception:
+        raise HTTPException(status_code=401, detail="invalid")
+    jti = data.get("jti")
+    email = data.get("sub")
+    if not jti or not email:
+        raise HTTPException(status_code=400, detail="bad token")
+    redis = request.app.state.redis
+    if not await redis.sismember("active_jtis", jti):
+        raise HTTPException(status_code=401, detail="revoked")
+    exp_dt = datetime.now(timezone.utc) + timedelta(minutes=5)
+    await conn.execute("UPDATE jwt_token SET expires_at=$1 WHERE jti=$2", exp_dt, jti)
+    session_token = jwt.encode({"sub": email, "jti": jti, "exp": exp_dt}, SECRET_KEY, algorithm="HS256")
+    resp = JSONResponse({"status": "ok"})
+    resp.delete_cookie("session", path="/")
+    resp.set_cookie("session", session_token, httponly=True, secure=False, samesite="lax", path="/", max_age=60 * 60 * 72)
     return resp
 
 

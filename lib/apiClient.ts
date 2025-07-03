@@ -9,6 +9,30 @@ import {
   clearClientKeyStorage,
 } from "./clientKeys";
 
+function getSessionToken(): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie
+    .split("; ")
+    .find((row) => row.startsWith("session="));
+  return match ? match.split("=")[1] : null;
+}
+
+async function refreshSessionIfNeeded() {
+  const token = getSessionToken();
+  if (!token) return;
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    if (payload.exp * 1000 <= Date.now()) {
+      await fetch(`${serverUrl}/auth/refresh-session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+        credentials: "include",
+      });
+    }
+  } catch {}
+}
+
 async function fetchServerKey(): Promise<Uint8Array> {
   const res = await fetch(`${serverUrl}/auth/ed25519-public-key`, {
     method: "POST",
@@ -35,6 +59,7 @@ async function encryptRequest(
   data: any,
   method: string = "POST"
 ): Promise<Response> {
+  await refreshSessionIfNeeded();
   const hasKeys = await loadClientKeys();
   if (!hasKeys) {
     const isAuthRequest = path.startsWith("/auth/");
