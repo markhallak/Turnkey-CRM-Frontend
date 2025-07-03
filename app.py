@@ -192,10 +192,10 @@ async def lifespan(app: FastAPI):
     async with app.state.db_pool.acquire() as c:
         rows = await c.fetch("SELECT jti FROM jwt_token WHERE revoked=FALSE AND expires_at>NOW()")
         if rows:
-            await redis.sadd("active_jtis", *[r["jti"] for r in rows])
+            await redis.sadd("active_jtis", *[str(r["jti"]) for r in rows])
         rows = await c.fetch("SELECT email FROM \"user\" WHERE is_blacklisted=TRUE")
         if rows:
-            await redis.sadd("blacklisted_users", *[r["email"] for r in rows])
+            await redis.sadd("blacklisted_users", *[str(r["email"]) for r in rows])
 
     async def listen_jwt():
         pub = redis.pubsub()
@@ -301,12 +301,12 @@ async def get_conn(db_pool: Pool = Depends(get_db_pool)):
 
 
 
-@app.get("/auth/public-key")
+@app.post("/auth/public-key")
 async def getPublicKeyEndpoint(request: Request):
     return {"public_key": request.app.state.publicKey}
 
 
-@app.get("/auth/ed25519-public-key")
+@app.post("/auth/ed25519-public-key")
 async def getEd25519PublicKey(request: Request):
     return {"public_key": request.app.state.ed25519PublicKey}
 
@@ -354,7 +354,7 @@ async def uploadDocument(fileBlob: bytes) -> dict:
 # TODO:                           HEADER ENDPOINTS                             #
 ################################################################################
 
-@app.get("/global-search")
+@app.post("/global-search")
 async def globalSearch(
         q: str = Query(..., description="Search query string"),
         conn: Connection = Depends(get_conn)
@@ -376,7 +376,7 @@ async def globalSearch(
     return {"results": [dict(r) for r in results]}
 
 
-@app.get("/get-notifications")
+@app.post("/get-notifications")
 async def getNotifications(
         size: int = Query(..., gt=0, description="Number of notifications per page"),
         last_seen_created_at: Optional[str] = Query(
@@ -436,7 +436,7 @@ async def getNotifications(
     }
 
 
-@app.get("/get-profile-details")
+@app.post("/get-profile-details")
 async def getProfileDetails(
         email: str = Query(..., description="Email of the user whose profile to fetch"),
         conn: Connection = Depends(get_conn)
@@ -459,7 +459,7 @@ async def getProfileDetails(
     }
 
 
-@app.get("/project-assessments/{project_id}")
+@app.post("/project-assessments/{project_id}")
 async def getProjectAssessments(project_id: str, db_pool: Pool = Depends(get_db_pool)):
     if not await isUUIDv4(project_id):
         raise HTTPException(status_code=400, detail="Invalid project id")
@@ -487,7 +487,7 @@ async def getProjectAssessments(project_id: str, db_pool: Pool = Depends(get_db_
 # TODO:                         DASHBOARD ENDPOINTS                            #
 ################################################################################
 
-@app.get("/get-dashboard-metrics")
+@app.post("/get-dashboard-metrics")
 async def getDashboardMetrics(conn: Connection = Depends(get_conn)):
     sql = "SELECT * FROM overall_aggregates;"
 
@@ -498,7 +498,7 @@ async def getDashboardMetrics(conn: Connection = Depends(get_conn)):
     return {"metrics": [dict(r) for r in rows]}
 
 
-@app.get("/get-calendar-events")
+@app.post("/get-calendar-events")
 async def getCalendarEvents(
         month: int = Query(
             ...,
@@ -544,7 +544,7 @@ async def getCalendarEvents(
 ################################################################################
 
 
-@app.get("/get-projects")
+@app.post("/get-projects")
 async def getProjects(
         size: int = Query(..., gt=0, description="Number of projects per page"),
         last_seen_created_at: Optional[str] = Query(
@@ -616,7 +616,7 @@ async def getProjects(
     }
 
 
-@app.get("/get-project-statuses")
+@app.post("/get-project-statuses")
 async def getProjectStatuses(conn: Connection = Depends(get_conn)):
     sql = """
             SELECT id, value, color
@@ -633,7 +633,7 @@ async def getProjectStatuses(conn: Connection = Depends(get_conn)):
     return {"project_statuses": [dict(r) for r in rows]}
 
 
-@app.get("/get-project-types")
+@app.post("/get-project-types")
 async def getProjectTypes(conn: Connection = Depends(get_conn)):
     sql = """
             SELECT id, value
@@ -649,7 +649,7 @@ async def getProjectTypes(conn: Connection = Depends(get_conn)):
     return {"project_types": [dict(r) for r in rows]}
 
 
-@app.get("/get-project-trades")
+@app.post("/get-project-trades")
 async def getProjectTrades(conn: Connection = Depends(get_conn)):
     sql = """
             SELECT id, value
@@ -665,7 +665,7 @@ async def getProjectTrades(conn: Connection = Depends(get_conn)):
     return {"project_trades": [dict(r) for r in rows]}
 
 
-@app.get("/get-project-priorities")
+@app.post("/get-project-priorities")
 async def getProjectPriorities(conn: Connection = Depends(get_conn)):
     sql = """
             SELECT id, value, color
@@ -763,7 +763,7 @@ async def createNewProject(
 ################################################################################
 # TODO:                        PROJECT VIEW ENDPOINTS                          #
 ################################################################################
-@app.get("/fetch-project")
+@app.post("/fetch-project")
 async def fetchProject(
         project_id: str = Query(..., description="Project UUID"),
         conn: Connection = Depends(get_conn)
@@ -871,7 +871,7 @@ async def fetchProject(
     return {"project": dict(row)}
 
 
-@app.get("/get-messages")
+@app.post("/get-messages")
 async def getMessages(
         projectId: str = Query(..., description="Project UUID"),
         size: int = Query(..., gt=0, description="Number of messages to return"),
@@ -954,7 +954,7 @@ async def getMessages(
     }
 
 
-@app.get("/fetch-project-quotes")
+@app.post("/fetch-project-quotes")
 async def fetchProjectQuotesEndpoint(
         project_id: str = Query(..., description="Project UUID"),
         size: int = Query(..., gt=0, description="Number of quotes to return"),
@@ -1036,7 +1036,7 @@ async def fetchProjectQuotesEndpoint(
     }
 
 
-@app.get("/fetch-project-documents")
+@app.post("/fetch-project-documents")
 async def fetchProjectDocumentsEndpoint(
         project_id: str = Query(..., description="Project UUID"),
         size: int = Query(..., gt=0, description="Number of documents to return"),
@@ -1118,7 +1118,7 @@ async def fetchProjectDocumentsEndpoint(
 # TODO:                         CLIENTS PAGE ENDPOINTS                         #
 ################################################################################
 
-@app.get("/get-clients")
+@app.post("/get-clients")
 async def getClients(
         size: int = Query(..., gt=0, description="Number of clients per page"),
         last_seen_created_at: Optional[str] = Query(
@@ -1195,7 +1195,7 @@ async def getClients(
     }
 
 
-@app.get("/get-client-types")
+@app.post("/get-client-types")
 async def getClientTypes(conn: Connection = Depends(get_conn)):
     sql = """
             SELECT id, value
@@ -1211,7 +1211,7 @@ async def getClientTypes(conn: Connection = Depends(get_conn)):
     return {"client_types": [dict(r) for r in rows]}
 
 
-@app.get("/get-client-statuses")
+@app.post("/get-client-statuses")
 async def getClientStatuses(conn: Connection = Depends(get_conn)):
     sql = """
             SELECT id, value, color
@@ -1317,7 +1317,7 @@ async def createNewClient(
 # TODO:                         CLIENTS VIEW ENDPOINTS                         #
 ################################################################################
 
-@app.get("/fetch-client")
+@app.post("/fetch-client")
 async def fetchClient(
         client_id: str = Query(..., description="Client UUID"),
         conn: Connection = Depends(get_conn)
@@ -1351,7 +1351,7 @@ async def fetchClient(
     return {"client": dict(row)}
 
 
-@app.get("/fetch-client-invoices")
+@app.post("/fetch-client-invoices")
 async def fetchClientInvoices(
         client_id: str = Query(..., description="Client UUID"),
         size: int = Query(..., gt=0, description="Number of invoices to return"),
@@ -1423,7 +1423,7 @@ async def fetchClientInvoices(
     }
 
 
-@app.get("/fetch-client-onboarding-documents")
+@app.post("/fetch-client-onboarding-documents")
 async def fetchClientOnboardingDocuments(
         client_id: str = Query(..., description="Client UUID"),
         size: int = Query(..., gt=0, description="Number of documents to return"),
@@ -1503,7 +1503,7 @@ async def fetchClientOnboardingDocuments(
     }
 
 
-@app.get("/get-insurance-documents")
+@app.post("/get-insurance-documents")
 async def getInsuranceDocuments(
         client_id: str = Query(..., description="Client UUID"),
         size: int = Query(..., gt=0, description="Number of documents to return"),
@@ -1580,7 +1580,7 @@ async def getInsuranceDocuments(
     }
 
 
-@app.get("/fetch-client-projects")
+@app.post("/fetch-client-projects")
 async def fetchClientProjects(
         client_id: str = Query(..., description="Client UUID"),
         size: int = Query(..., gt=0, description="Number of projects to return"),
@@ -1656,7 +1656,7 @@ async def fetchClientProjects(
 ################################################################################
 
 
-@app.get("/get-billings")
+@app.post("/get-billings")
 async def getBillings(
         size: int = Query(..., gt=0, description="Number of invoices per page"),
         lastSeenCreatedAt: Optional[str] = Query(
@@ -1736,7 +1736,7 @@ async def getBillings(
     }
 
 
-@app.get("/get-billing-statuses")
+@app.post("/get-billing-statuses")
 async def getBillingStatuses(conn: Connection = Depends(get_conn)):
     sql = """
             SELECT id, value, color
@@ -1753,7 +1753,7 @@ async def getBillingStatuses(conn: Connection = Depends(get_conn)):
     return {"billing_statuses": [dict(r) for r in rows]}
 
 
-@app.get("/get-passwords")
+@app.post("/get-passwords")
 async def getPasswords(
         clientId: str = Query(..., description="Client UUID"),
         size: int = Query(..., gt=0, description="Number of passwords per page"),
@@ -1927,7 +1927,7 @@ async def createNewQuote(
     return {"quoteId": quoteId}
 
 
-@app.get("/get-invoice")
+@app.post("/get-invoice")
 async def getInvoice(
         id: str = Query(..., description="Invoice UUID"),
         conn: Connection = Depends(get_conn)
@@ -1945,7 +1945,7 @@ async def getInvoice(
     return {"invoice": dict(row)}
 
 
-@app.get("/get-quote")
+@app.post("/get-quote")
 async def getQuote(
         id: str = Query(..., description="Quote UUID"),
         conn: Connection = Depends(get_conn)
@@ -1967,7 +1967,7 @@ async def getQuote(
 # TODO:                         PROFILE ENDPOINTS                              #
 ################################################################################
 
-@app.get("/get-onboarding-data")
+@app.post("/get-onboarding-data")
 async def getOnboardingData(
         clientId: str = Query(..., description="Client UUID"),
         conn: Connection = Depends(get_conn)
@@ -2264,7 +2264,7 @@ async def inviteUser(
         account_type.replace(' ', '_').lower()
     )
 
-    return {"status": "link sent"}
+    return {"status": "Link will be sent shortly"}
 
 
 @app.put("/update-user")
@@ -2442,7 +2442,7 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
 
 
 
-@app.get("/auth/get-recovery-params")
+@app.post("/auth/get-recovery-params")
 async def getRecoveryParams(email: str, conn: Connection = Depends(get_conn)):
     row = await conn.fetchrow(
         """
@@ -2545,7 +2545,7 @@ async def unblacklistUser(email: str = Body(..., embed=True), request: Request =
     return {"status": "ok"}
 
 
-@app.get("/connection-test")
+@app.post("/connection-test")
 async def connectionTest():
     return {"status": "ok"}
 

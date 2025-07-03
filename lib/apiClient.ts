@@ -10,7 +10,14 @@ import {
 } from "./clientKeys";
 
 async function fetchServerKey(): Promise<Uint8Array> {
-  const res = await fetch(`${serverUrl}/auth/ed25519-public-key`);
+  const res = await fetch(`${serverUrl}/auth/ed25519-public-key`, {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({}),
+});
+
   if (!res.ok) {
     throw new Error(`failed to fetch server public key: ${res.status}`);
   }
@@ -135,10 +142,6 @@ async function decryptResponse<T>(res: Response): Promise<T> {
 
 export function encryptPost(path: string, data: any): Promise<Response> {
   return encryptRequest(path, data, "POST");
-}
-
-export function encryptGet(path: string, data?: any): Promise<Response> {
-  return encryptRequest(path, data, "GET");
 }
 
 export function decryptPost<T>(res: Response): Promise<T> {
