@@ -78,45 +78,47 @@ def getEnforcer(request: Request) -> SyncedEnforcer:
     return request.app.state.enforcer
 
 
+BYPASS_SESSION = os.getenv("BYPASS_SESSION_VERIFICATION", "false").lower() == "true"
+
 async def authorize(request: Request, user: SimpleUser = Depends(getCurrentUser),
                     enforcer: SyncedEnforcer = Depends(getEnforcer)):
     path = request.url.path
-    if not path.startswith("/auth"):
-        if not user.setup_done and path != "/set-recovery-phrase":
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="set-recovery-phrase")
-        if user.setup_done and not user.onboarding_done and path != "/onboarding":
-            if user.is_client:
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="onboarding")
-        sub = str(user.email)
-        domain = "*"
-        obj = path
-        act = request.method.lower()
+    secure_paths = [
+        "/auth/invite",
+        "/auth/complete-onboarding",
+        "/auth/update-client-key",
+        "/auth/revoke",
+    ]
 
-        if not enforcer.enforce(sub, domain, obj, act):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+    if path.startswith("/auth"):
+        if path in secure_paths and not BYPASS_SESSION:
+            if not user:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="unauthenticated")
+            if path == "/auth/invite" and not enforcer.enforce(user.email, "*", path, request.method.lower()):
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+        return True
+
+    if not user:
+        if BYPASS_SESSION:
+            return True
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="unauthenticated")
+
+    if not user.setup_done and path != "/set-recovery-phrase":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="set-recovery-phrase")
+    if user.setup_done and not user.onboarding_done and path != "/onboarding":
+        if user.is_client:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="onboarding")
+    sub = str(user.email)
+    domain = "*"
+    obj = path
+    act = request.method.lower()
+
+    if not enforcer.enforce(sub, domain, obj, act):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
 
     return True
 
 
-async def verifySession(request: Request):
-    token = request.cookies.get("session")
-    if not token:
-        raise HTTPException(status_code=401, detail="unauthenticated")
-    try:
-        data = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
-    except Exception:
-        raise HTTPException(status_code=401, detail="unauthenticated")
-    redis = request.app.state.redis
-    jti = data.get("jti")
-    sub = data.get("sub")
-    if not jti or not sub:
-        raise HTTPException(status_code=401, detail="unauthenticated")
-    if not await redis.sismember("active_jtis", jti):
-        raise HTTPException(status_code=401, detail="revoked")
-    if await redis.sismember("blacklisted_users", sub):
-        raise HTTPException(status_code=403, detail="blacklisted")
-    request.state.user_email = sub
-    return sub
 
 
 def decryptPayload(includePublic: bool = False):
@@ -2250,8 +2252,10 @@ async def updateInsuranceData(
 async def inviteUser(
         request: Request,
         payload: dict = Body(),
-        conn: Connection = Depends(get_conn)
+        conn: Connection = Depends(get_conn),
+        enforcer: SyncedEnforcer = Depends(getEnforcer)
 ):
+
     email_to_invite = payload.get("emailToInvite")
     account_type = payload.get("accountType")
     first_name = payload.get("firstName", "")
@@ -2286,12 +2290,14 @@ async def inviteUser(
         email_to_invite,
         account_type.replace(' ', '_').lower()
     )
+    enforcer.get_watcher().update()
 
     return {"status": "Link will be sent shortly"}
 
 
 @app.put("/update-user")
-async def updateUser(payload: dict = Body(), conn: Connection = Depends(get_conn)):
+async def updateUser(payload: dict = Body(), conn: Connection = Depends(get_conn),
+                     enforcer: SyncedEnforcer = Depends(getEnforcer)):
     user_id = payload.get("userId")
     if not user_id or not await isUUIDv4(user_id):
         raise HTTPException(status_code=400, detail="Invalid userId")
@@ -2331,6 +2337,7 @@ async def updateUser(payload: dict = Body(), conn: Connection = Depends(get_conn
             subj,
             role.replace(' ', '_').lower(),
         )
+        enforcer.get_watcher().update()
 
     return {"status": "updated"}
 
