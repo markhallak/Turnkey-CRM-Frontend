@@ -88,7 +88,14 @@ async def authorize(request: Request, user: SimpleUser = Depends(getCurrentUser)
 
 
 
-    if not BYPASS_SESSION and not path.startswith("/auth/ed25519") and not path.startswith("/auth/public-key") and not path.startswith("/auth/login"):
+    if (
+        not BYPASS_SESSION
+        and not path.startswith("/auth/ed25519")
+        and not path.startswith("/auth/public-key")
+        and not path.startswith("/auth/login")
+        and not path.startswith("/auth/validate-signup-token")
+        and not path.startswith("/auth/validate-login-token")
+    ):
         perms = enforcer.get_policy()  # [[sub, dom, obj, act], …]
 
         # 2. every “g” (role-mapping) rule it knows
@@ -344,8 +351,8 @@ async def getEd25519PublicKey(request: Request):
     return {"public_key": request.app.state.ed25519PublicKey}
 
 
-@app.post("/auth/validate-magic-link")
-async def validateMagicLink(request: Request, data: dict = Depends(decryptPayload()),
+@app.post("/auth/validate-signup-token")
+async def validateSignupToken(request: Request, data: dict = Depends(decryptPayload()),
                             conn: Connection = Depends(get_conn)):
     token = data.get("token")
 
@@ -372,6 +379,70 @@ async def validateMagicLink(request: Request, data: dict = Depends(decryptPayloa
     return {
         "userEmail": payload.get("userEmail"),
     }
+
+
+@app.post("/auth/validate-login-token")
+async def validateLoginToken(
+    request: Request,
+    data: dict = Depends(decryptPayload()),
+    conn: Connection = Depends(get_conn),
+    enforcer: SyncedEnforcer = Depends(getEnforcer),
+):
+    token_str = data.get("token")
+    try:
+        payload = decodeJwtRs256(token_str, request.app.state.publicKey)
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid token")
+
+    link_uuid = payload.get("uuid")
+    if not link_uuid or not await isUUIDv4(link_uuid):
+        raise HTTPException(status_code=400, detail="invalid token")
+
+    row = await conn.fetchrow(
+        "SELECT consumed, expires_at, user_email FROM magic_link WHERE uuid=$1",
+        UUID(link_uuid),
+    )
+    if not row or row["consumed"] or row["expires_at"] < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="invalid token")
+
+    userEmail = row["user_email"]
+    jti = str(uuid4())
+    exp_dt = datetime.now(timezone.utc) + timedelta(minutes=5)
+    await conn.execute(
+        "INSERT INTO jwt_token (jti, user_email, expires_at, revoked) VALUES ($1,$2,$3,FALSE)",
+        jti,
+        userEmail,
+        exp_dt,
+    )
+    redis = request.app.state.redis
+    await redis.sadd("active_jtis", jti)
+    await redis.publish("jwt_updates", f"add:{jti}")
+    await conn.execute("UPDATE magic_link SET consumed=TRUE WHERE uuid=$1", UUID(link_uuid))
+
+    roles = enforcer.get_roles_for_user_in_domain(userEmail, "*")
+    if "client_admin" in roles:
+        next_payload = {
+            "next_step": "/onboarding",
+            "exp": int((datetime.now(timezone.utc) + timedelta(minutes=5)).timestamp()),
+        }
+    else:
+        next_payload = {
+            "next_step": "/dashboard",
+            "exp": int((datetime.now(timezone.utc) + timedelta(minutes=5)).timestamp()),
+        }
+    nav_token = generateJwtRs256(next_payload, request.app.state.privateKey)
+    session_token = jwt.encode({"sub": userEmail, "jti": jti, "exp": exp_dt}, SECRET_KEY, algorithm="HS256")
+    response = JSONResponse({"token": nav_token})
+    response.set_cookie(
+        "session",
+        session_token,
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        path="/",
+        max_age=60 * 60 * 72,
+    )
+    return response
 
 
 async def uploadDocument(fileBlob: bytes) -> dict:

@@ -18,7 +18,7 @@ export default function SetRecoveryPhrasePage() {
     const verifyAndSetup = async () => {
       if (!token) return;
       try {
-        const res = await encryptPost("/auth/validate-magic-link", { token });
+        const res = await encryptPost("/auth/validate-signup-token", { token });
         if (!res.ok) throw new Error("validate");
         const j = await decryptPost<{ userEmail: string }>(res);
         setInfo({ userEmail: j.userEmail });
