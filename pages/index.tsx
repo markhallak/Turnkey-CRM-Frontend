@@ -5,10 +5,15 @@ import { useEffect } from "react";
 export default function IndexPage() {
   const router = useRouter();
   useEffect(() => {
-    const loggedIn = document.cookie
-      .split("; ")
-      .some((c) => c.startsWith("token="));
-    router.replace(loggedIn ? "/dashboard" : "/login");
+    const checkLogin = async () => {
+      try {
+        const res = await fetch("/auth/me");
+        router.replace(res.ok ? "/dashboard" : "/login");
+      } catch {
+        router.replace("/login");
+      }
+    };
+    checkLogin();
   }, [router]);
   return null;
 }
