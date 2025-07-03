@@ -5,6 +5,7 @@ import os
 import random
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
+from decimal import Decimal
 from typing import Optional
 from uuid import UUID, uuid4
 
@@ -151,7 +152,12 @@ def encryptForClient(data: dict, client_pub: bytes, app: FastAPI) -> dict:
     shared = nacl.bindings.crypto_scalarmult(server_curve_priv, client_curve_pub)
     aes = AESGCM(shared)
     iv = os.urandom(12)
-    cipher = aes.encrypt(iv, json.dumps(data).encode(), None)
+    def defaultEncoder(o):
+        if isinstance(o, Decimal):
+            return float(o)
+        raise TypeError(f"Object of type {o.__class__.__name__} is not JSON serializable")
+
+    cipher = aes.encrypt(iv, json.dumps(data, default=defaultEncoder).encode(), None)
     return {
         "nonce": base64.b64encode(iv).decode(),
         "ciphertext": base64.b64encode(cipher).decode(),
@@ -391,9 +397,9 @@ async def getNotifications(
         data: dict = Depends(decryptPayload()),
         conn: Connection = Depends(get_conn)
 ):
-    last_seen_created_at = data["last_seen_created_at"]
-    last_seen_id = data["last_seen_id"]
-    size = data["size"]
+    last_seen_created_at = data.get("last_seen_created_at")
+    last_seen_id = data.get("last_seen_id")
+    size = data.get("size", 10)
 
     if last_seen_created_at:
         try:
@@ -452,6 +458,10 @@ async def getProfileDetails(
         user: SimpleUser = Depends(getCurrentUser),
         conn: Connection = Depends(get_conn)
 ):
+    email = user.email if user else data.get("userEmail")
+    if not email:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="unauthenticated")
+
     sql = """
             SELECT first_name, hex_color
             FROM "user"
@@ -460,9 +470,9 @@ async def getProfileDetails(
             LIMIT 1;
         """
 
-    row = await conn.fetchrow(sql, user.email)
+    row = await conn.fetchrow(sql, email)
     if not row:
-        raise HTTPException(status_code=404, detail=f"User {user.email} not found")
+        raise HTTPException(status_code=404, detail=f"User {email} not found")
 
     payload = {
         "first_name": row["first_name"],
@@ -2473,7 +2483,7 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
         if clientPub is not None:
             payload = encryptForClient(payload, clientPub, request.app)
         response = JSONResponse(payload)
-        response.set_cookie("session", session_token, httponly=True, secure=True)
+        response.set_cookie("session", session_token, httponly=True, secure=False)
         return response
 
 
