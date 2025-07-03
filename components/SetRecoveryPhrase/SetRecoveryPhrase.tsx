@@ -50,6 +50,7 @@ export default function SetRecoveryPhrase({
           salt: Buffer.from(salt).toString("base64"),
           ...params,
         }),
+        credentials: "include",
       });
       if (!resHash.ok) throw new Error("hash");
       const { hash: hashB64 } = await resHash.json();

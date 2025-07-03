@@ -84,6 +84,7 @@ export default function LoginForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pass: phrase, salt: j.salt, ...params }),
+        credentials: "include",
       });
       if (!resHash.ok) throw new Error("hash");
       const { hash: hashB64 } = await resHash.json();
