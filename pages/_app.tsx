@@ -26,7 +26,7 @@ export default function App({ Component, pageProps }: AppProps) {
     const originalPush = router.push.bind(router);
     router.push = (url, as, options) => {
       if (
-        router.pathname === "/login" ||
+        router.pathname === "/auth/login" ||
         router.pathname === "/onboarding" ||
         router.pathname === "/set-recovery-phrase" ||
         router.pathname === "/projects/new" ||
@@ -37,7 +37,7 @@ export default function App({ Component, pageProps }: AppProps) {
       }
 
       const path = typeof url === "string" ? url : url.pathname;
-      if (path === "/login") {
+      if (path === "/auth/login") {
         return originalPush(url, as, options);
       }
 
@@ -71,7 +71,7 @@ export default function App({ Component, pageProps }: AppProps) {
     check();
   }, [router.pathname]);
 
-  const noSidebar = ["/login", "/onboarding", "/set-recovery-phrase"].includes(router.pathname);
+  const noSidebar = ["/auth/login", "/onboarding", "/set-recovery-phrase"].includes(router.pathname);
 
   return (
     <ToastProvider>

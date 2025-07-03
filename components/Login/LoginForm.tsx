@@ -41,27 +41,27 @@ export default function LoginForm({
 
   const sendLogin = async () => {
     if (Date.now() - lastLoginRef.current < 60000) {
-      toast({ description: "Please wait before trying again", variant: "destructive" });
+      toast({ description: "Please wait before trying again", variant: "destructive", duration: 5000 });
       return;
     }
     setLoading(true);
     try {
-      const r = await fetch("/auth/login", {
+      const r = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL }/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
         credentials: "include",
       });
       if (!r.ok) throw new Error(`status ${r.status}`);
-      toast({ description: "Check your email for a login link." });
+      toast({ description: "Check your email for a login link.", duration: 5000 });
     } catch (err: any) {
       const msg = typeof err.message === "string" ? err.message : "";
       if (msg.includes("blacklisted")) {
-        toast({ description: "Account is blacklisted.", variant: "destructive" });
+        toast({ description: "Account is blacklisted.", variant: "destructive", duration: 5000 });
       } else if (msg.includes("User not found")) {
-        toast({ description: "Account not found", variant: "destructive" });
+        toast({ description: "Account not found", variant: "destructive", duration: 5000 });
       } else {
-        toast({ description: "Failed to send login link.", variant: "destructive" });
+        toast({ description: "Failed to send login link.", variant: "destructive", duration: 5000 });
       }
     } finally {
       setLoading(false);
@@ -72,14 +72,14 @@ export default function LoginForm({
   const handleRecover = async () => {
     if (!phrase) return;
     if (Date.now() - lastParamsRef.current < 60000) {
-      toast({ description: "Please wait before trying again", variant: "destructive" });
+      toast({ description: "Please wait before trying again", variant: "destructive", duration: 5000 });
       return;
     }
     setRecoverLoading(true);
     try {
       const res = await encryptPost("/auth/get-recovery-params", { email });
       if (res.status === 404) {
-        toast({ description: "Account not found", variant: "destructive" });
+        toast({ description: "Account not found", variant: "destructive", duration: 5000 });
         return;
       }
       if (!res.ok) throw new Error("params");
@@ -100,7 +100,7 @@ export default function LoginForm({
       setPhrase("");
       await sendLogin();
     } catch {
-      toast({ description: "Recovery failed", variant: "destructive" });
+      toast({ description: "Recovery failed", variant: "destructive", duration: 5000 });
     } finally {
       setRecoverLoading(false);
       lastParamsRef.current = Date.now();
@@ -110,7 +110,7 @@ export default function LoginForm({
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (error || !email) {
-      toast({ description: error || "Email required", variant: "destructive" });
+      toast({ description: error || "Email required", variant: "destructive", duration: 5000 });
       return;
     }
     const ok = await loadClientKeys();

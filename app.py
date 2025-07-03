@@ -79,7 +79,7 @@ def getEnforcer(request: Request) -> SyncedEnforcer:
     return request.app.state.enforcer
 
 
-BYPASS_SESSION = True
+BYPASS_SESSION = False
 
 
 async def authorize(request: Request, user: SimpleUser = Depends(getCurrentUser),
@@ -88,7 +88,7 @@ async def authorize(request: Request, user: SimpleUser = Depends(getCurrentUser)
 
 
 
-    if not BYPASS_SESSION and not path.startswith("/auth/ed25519") and not path.startswith("/auth/public-key"):
+    if not BYPASS_SESSION and not path.startswith("/auth/ed25519") and not path.startswith("/auth/public-key") and not path.startswith("/auth/login"):
         perms = enforcer.get_policy()  # [[sub, dom, obj, act], …]
 
         # 2. every “g” (role-mapping) rule it knows
@@ -98,7 +98,7 @@ async def authorize(request: Request, user: SimpleUser = Depends(getCurrentUser)
         roles = enforcer.get_roles_for_user_in_domain(user.email, "*")
 
         # 4. all permissions this user already enjoys
-        user_perms = enforcer.get_permissions_for_user(user.email, "*")
+        user_perms = enforcer.get_permissions_for_user(user.email)
 
         # put whatever logger you use here
         print("PERM RULES:", perms)
@@ -352,11 +352,11 @@ async def validateMagicLink(request: Request, data: dict = Depends(decryptPayloa
     try:
         payload = decodeJwtRs256(token, request.app.state.publicKey)
     except Exception:
-        raise HTTPException(status_code=400, detail="invalid")
+        raise HTTPException(status_code=400, detail="invalid token")
 
     uuid_str = payload.get("uuid")
     if not uuid_str or not await isUUIDv4(uuid_str):
-        raise HTTPException(status_code=400, detail="invalid")
+        raise HTTPException(status_code=400, detail="invalid token uuid")
 
     row = await conn.fetchrow(
         "SELECT consumed, expires_at FROM magic_link WHERE uuid=$1",
@@ -367,7 +367,7 @@ async def validateMagicLink(request: Request, data: dict = Depends(decryptPayloa
             or row["consumed"]
             or row["expires_at"] < datetime.now(timezone.utc)
     ):
-        raise HTTPException(status_code=400, detail="invalid")
+        raise HTTPException(status_code=400, detail="invalid sql data")
 
     return {
         "userEmail": payload.get("userEmail"),
@@ -2283,8 +2283,7 @@ async def updateInsuranceData(
 async def inviteUser(
         request: Request,
         payload: dict = Body(),
-        conn: Connection = Depends(get_conn),
-        enforcer: SyncedEnforcer = Depends(getEnforcer)
+        conn: Connection = Depends(get_conn)
 ):
     email_to_invite = payload.get("emailToInvite")
     account_type = payload.get("accountType")
@@ -2373,8 +2372,7 @@ async def updateUser(request: Request, payload: dict = Body(), conn: Connection 
 
 
 @app.post("/auth/login")
-async def login(request: Request, data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn),
-                enforcer: SyncedEnforcer = Depends(getEnforcer)):
+async def login(request: Request, data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
     email = data.get("email")
     if not email:
         raise HTTPException(status_code=400, detail="Email required")
@@ -2386,25 +2384,16 @@ async def login(request: Request, data: dict = Depends(decryptPayload()), conn: 
         raise HTTPException(status_code=404, detail="User not found")
     if row["is_blacklisted"]:
         raise HTTPException(status_code=403, detail="blacklisted")
-    userId = row["id"]
-    token = await createMagicLink(
+
+    await createMagicLink(
         conn,
-        userId,
         request.app.state.privateKey,
         purpose="login",
         recipientEmail=email,
         ttlHours=1,
     )
 
-    link = f"/set-recovery-phrase?token={token}"
-    await conn.execute(
-        "INSERT INTO notification (triggered_by_category, triggered_by_id, content) VALUES ($1,$2,$3)",
-        "auth",
-        userId,
-        link,
-    )
-
-    return {"status": "link sent"}
+    return {"status": "Link will be sent shortly"}
 
 
 @app.post("/auth/set-recovery-phrase")
