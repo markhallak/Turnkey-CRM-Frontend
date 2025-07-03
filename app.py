@@ -311,8 +311,10 @@ async def getEd25519PublicKey(request: Request):
     return {"public_key": request.app.state.ed25519PublicKey}
 
 
-@app.get("/auth/validate-magic-link")
-async def validateMagicLink(token: str, request: Request, conn: Connection = Depends(get_conn)):
+@app.post("/auth/validate-magic-link")
+async def validateMagicLink(request: Request, data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
+    token = data.get("token")
+
     try:
         payload = decodeJwtRs256(token, request.app.state.publicKey)
     except Exception:
