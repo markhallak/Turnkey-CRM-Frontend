@@ -59,12 +59,13 @@ export default function App({ Component, pageProps }: AppProps) {
     const check = async () => {
       const path = router.pathname;
       if (path === "/auth/login" || path === "/set-recovery-phrase") return;
-      const hasSession = document.cookie
-        .split("; ")
-        .some((c) => c.startsWith("session="));
+      let hasSession = false;
+      try {
+        const res = await fetch("/auth/me");
+        hasSession = res.status === 200;
+      } catch {}
       const hasKeys = await loadClientKeys();
       if (!hasSession || !hasKeys) {
-        document.cookie = "session=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
         router.replace("/auth/login");
       }
     };
