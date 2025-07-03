@@ -12,6 +12,8 @@ import {
   fetchWithRetry,
 } from "@/components/Header";
 
+let wrapperFetched = false;
+
 interface IProps {
   children: React.ReactNode;
   title: string;
@@ -34,11 +36,9 @@ const Wrapper: FC<IProps> = ({ children, title, initialChildLoading = false }) =
     }
     setChildLoadingState(loadingCount.current > 0);
   };
-  const fetched = useRef(false);
-
   useEffect(() => {
-    if (fetched.current) return;
-    fetched.current = true;
+    if (wrapperFetched) return;
+    wrapperFetched = true;
 
     const fallbackColor = "#000000";
 

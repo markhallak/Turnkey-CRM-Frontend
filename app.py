@@ -387,7 +387,8 @@ async def globalSearch(
 
 @app.post("/get-notifications")
 async def getNotifications(
-data: dict = Depends(decryptPayload()),
+        request: Request,
+        data: dict = Depends(decryptPayload()),
         conn: Connection = Depends(get_conn)
 ):
     last_seen_created_at = data["last_seen_created_at"]
@@ -431,17 +432,23 @@ data: dict = Depends(decryptPayload()),
         next_ts = None
         next_id = None
 
-    return {
+    payload = {
         "notifications": [dict(r) for r in rows],
         "total_count": total,
         "page_size": size,
         "last_seen_created_at": next_ts,
         "last_seen_id": next_id,
     }
+    client_pub = data.get("_client_pub")
+    if client_pub is not None:
+        payload = encryptForClient(payload, client_pub, request.app)
+    return payload
 
 
 @app.post("/get-profile-details")
 async def getProfileDetails(
+        request: Request,
+        data: dict = Depends(decryptPayload()),
         user: SimpleUser = Depends(getCurrentUser),
         conn: Connection = Depends(get_conn)
 ):
@@ -457,10 +464,14 @@ async def getProfileDetails(
     if not row:
         raise HTTPException(status_code=404, detail=f"User {user.email} not found")
 
-    return {
+    payload = {
         "first_name": row["first_name"],
         "hex_color": row["hex_color"],
     }
+    client_pub = data.get("_client_pub")
+    if client_pub is not None:
+        payload = encryptForClient(payload, client_pub, request.app)
+    return payload
 
 
 @app.post("/project-assessments/{project_id}")
@@ -492,19 +503,27 @@ async def getProjectAssessments(project_id: str, db_pool: Pool = Depends(get_db_
 ################################################################################
 
 @app.post("/get-dashboard-metrics")
-async def getDashboardMetrics(conn: Connection = Depends(get_conn)):
+async def getDashboardMetrics(
+        request: Request,
+        data: dict = Depends(decryptPayload()),
+        conn: Connection = Depends(get_conn)):
     sql = "SELECT * FROM overall_aggregates;"
 
     try:
         rows = await conn.fetch(sql)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    return {"metrics": [dict(r) for r in rows]}
+    payload = {"metrics": [dict(r) for r in rows]}
+    client_pub = data.get("_client_pub")
+    if client_pub is not None:
+        payload = encryptForClient(payload, client_pub, request.app)
+    return payload
 
 
 @app.post("/get-calendar-events")
 async def getCalendarEvents(
-data: dict = Depends(decryptPayload()),
+        request: Request,
+        data: dict = Depends(decryptPayload()),
         conn: Connection = Depends(get_conn)
 ):
     month = data["month"]
@@ -540,7 +559,11 @@ data: dict = Depends(decryptPayload()),
         d["event_date"] = d["event_date"].isoformat()
         events.append(d)
 
-    return {"events": events}
+    payload = {"events": events}
+    client_pub = data.get("_client_pub")
+    if client_pub is not None:
+        payload = encryptForClient(payload, client_pub, request.app)
+    return payload
 
 
 ################################################################################

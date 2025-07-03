@@ -4,7 +4,7 @@ import CalendarComponent from "@/components/Dashboard/CalenderComponent";
 import Performance from "@/components/Dashboard/Performance";
 import Wrapper from "@/components/Wrapper";
 import { LuCircleUserRound } from "react-icons/lu";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   getCalendarEvents,
   getDashboardMetrics,
@@ -14,15 +14,16 @@ import {
 } from "@/components/Header";
 import { useWrapperData } from "@/lib/wrapperContext";
 
+let dashboardFetched = false;
+
 function DashboardContent() {
 const { notifications, setChildLoading } = useWrapperData();
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
-  const fetched = useRef(false);
 
   useEffect(() => {
-    if (fetched.current) return;
-    fetched.current = true;
+    if (dashboardFetched) return;
+    dashboardFetched = true;
     setChildLoading(true);
     const month = new Date().getMonth() + 1;
 
