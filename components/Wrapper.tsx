@@ -40,21 +40,18 @@ const Wrapper: FC<IProps> = ({ children, title, initialChildLoading = false }) =
     if (fetched.current) return;
     fetched.current = true;
 
-    const userEmail = process.env.NEXT_PUBLIC_DEFAULT_USER_EMAIL ?? "";
-    const getColor = () => `#${Math.floor(Math.random() * 0xffffff)
-      .toString(16)
-      .padStart(6, "0")}`;
+    const fallbackColor = "#000000";
 
     setChildLoading(true);
     Promise.allSettled([
       fetchWithRetry(() => getNotifications(10)),
-      fetchWithRetry(() => getProfileDetails(userEmail)),
+      fetchWithRetry(() => getProfileDetails()),
     ])
       .then(([nRes, pRes]) => {
         const profile: ProfileDetails =
           pRes.status === "fulfilled"
             ? pRes.value
-            : { firstName: "A", hexColor: getColor() };
+            : { firstName: "A", hexColor: fallbackColor };
 
         const notifications =
           nRes.status === "fulfilled"
@@ -83,13 +80,12 @@ const Wrapper: FC<IProps> = ({ children, title, initialChildLoading = false }) =
 
       })
       .catch(() => {
-        const color = getColor();
         setUserData({
           notifications: [],
           userName: "A",
-          avatarColor: color,
+          avatarColor: fallbackColor,
         });
-     })
+      })
       .finally(() => setChildLoading(false));
   }, []);
 
