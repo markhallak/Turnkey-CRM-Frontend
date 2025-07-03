@@ -22,7 +22,11 @@ async function fetchServerKey(): Promise<Uint8Array> {
 }
 
 
-export async function encryptPost(path: string, data: any): Promise<Response> {
+async function encryptRequest(
+  path: string,
+  data: any,
+  method: string = "POST"
+): Promise<Response> {
   const hasKeys = await loadClientKeys();
   if (!hasKeys) {
     clearClientKeyStorage();
@@ -72,7 +76,7 @@ export async function encryptPost(path: string, data: any): Promise<Response> {
 
   // Send
   const res = await fetch(`${serverUrl}${path}`, {
-    method: "POST",
+    method,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
     credentials: "include",
@@ -80,7 +84,7 @@ export async function encryptPost(path: string, data: any): Promise<Response> {
   return res;
 }
 
-export async function decryptPost<T>(res: Response): Promise<T> {
+async function decryptResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     if (res.status === 403) {
       try {
@@ -129,4 +133,16 @@ export async function decryptPost<T>(res: Response): Promise<T> {
   return JSON.parse(new TextDecoder().decode(buf)) as T;
 }
 
-export { fetchServerKey };
+export function encryptPost(path: string, data: any): Promise<Response> {
+  return encryptRequest(path, data, "POST");
+}
+
+export function encryptGet(path: string, data?: any): Promise<Response> {
+  return encryptRequest(path, data, "GET");
+}
+
+export function decryptPost<T>(res: Response): Promise<T> {
+  return decryptResponse(res);
+}
+
+export { fetchServerKey, encryptRequest, decryptResponse };
