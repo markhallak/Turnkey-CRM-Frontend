@@ -124,6 +124,7 @@ export async function getProfileDetails(userEmail: string) {
     "/get-profile-details",
     { email: userEmail }
   );
+
   return { firstName: data.first_name, hexColor: data.hex_color };
 }
 

@@ -31,11 +31,12 @@ from util import isUUIDv4, createMagicLink, generateJwtRs256, decodeJwtRs256
 
 
 class SimpleUser:
-    def __init__(self, id: UUID, email: str, setup_done: bool, onboarding_done: bool):
+    def __init__(self, id: UUID, email: str, setup_done: bool, onboarding_done: bool, is_client: bool):
         self.id = id
         self.email = email
         self.setup_done = setup_done
         self.onboarding_done = onboarding_done
+        self.is_client = is_client
 
 
 async def getCurrentUser(request: Request) -> SimpleUser | None:
@@ -48,7 +49,8 @@ async def getCurrentUser(request: Request) -> SimpleUser | None:
                 email,
             )
         if row:
-            return SimpleUser(row["id"], email, row["has_set_recovery_phrase"], row["onboarding_done"])
+            return SimpleUser(row["id"], email, row["has_set_recovery_phrase"], row["onboarding_done"],
+                              row["is_client"])
     return None
 
 
@@ -63,7 +65,8 @@ async def authorize(request: Request, user: SimpleUser = Depends(getCurrentUser)
         if not user.setup_done and path != "/set-recovery-phrase":
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="set-recovery-phrase")
         if user.setup_done and not user.onboarding_done and path != "/onboarding":
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="onboarding")
+            if user.is_client:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="onboarding")
         sub = str(user.email)
         domain = "*"
         obj = path
@@ -247,10 +250,10 @@ async def lifespan(app: FastAPI):
                 edPriv = await c.get(f"{KMS_URL}/ed25519-private-key")
                 edPub = await c.get(f"{KMS_URL}/ed25519-public-key")
             if (
-                priv.json()["privateKey"] != app.state.privateKey or
-                pub.json()["publicKey"] != app.state.publicKey or
-                edPriv.json()["privateKey"] != app.state.ed25519PrivateKey or
-                edPub.json()["publicKey"] != app.state.ed25519PublicKey
+                    priv.json()["privateKey"] != app.state.privateKey or
+                    pub.json()["publicKey"] != app.state.publicKey or
+                    edPriv.json()["privateKey"] != app.state.ed25519PrivateKey or
+                    edPub.json()["publicKey"] != app.state.ed25519PublicKey
             ):
                 app.state.privateKey = priv.json()["privateKey"]
                 app.state.publicKey = pub.json()["publicKey"]
@@ -276,7 +279,6 @@ async def lifespan(app: FastAPI):
         print("DB pool closed")
 
 
-
 app = FastAPI(lifespan=lifespan, dependencies=[Depends(authorize)])
 origins = [
     "http://localhost:3000",
@@ -285,11 +287,12 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,            # <-- your React app origin
-    allow_credentials=True,           # <-- if you send cookies or Authorization headers
-    allow_methods=["*"],              # <-- GET, POST, PUT, DELETE, OPTIONS, etc
-    allow_headers=["*"],              # <-- allow all request headers
+    allow_origins=origins,  # <-- your React app origin
+    allow_credentials=True,  # <-- if you send cookies or Authorization headers
+    allow_methods=["*"],  # <-- GET, POST, PUT, DELETE, OPTIONS, etc
+    allow_headers=["*"],  # <-- allow all request headers
 )
+
 
 def get_db_pool(request: Request) -> Pool:
     return request.app.state.db_pool
@@ -298,7 +301,6 @@ def get_db_pool(request: Request) -> Pool:
 async def get_conn(db_pool: Pool = Depends(get_db_pool)):
     async with db_pool.acquire() as conn:
         yield conn
-
 
 
 @app.post("/auth/public-key")
@@ -312,7 +314,8 @@ async def getEd25519PublicKey(request: Request):
 
 
 @app.post("/auth/validate-magic-link")
-async def validateMagicLink(request: Request, data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
+async def validateMagicLink(request: Request, data: dict = Depends(decryptPayload()),
+                            conn: Connection = Depends(get_conn)):
     token = data.get("token")
 
     try:
@@ -329,9 +332,9 @@ async def validateMagicLink(request: Request, data: dict = Depends(decryptPayloa
         UUID(uuid_str),
     )
     if (
-        not row
-        or row["consumed"]
-        or row["expires_at"] < datetime.now(timezone.utc)
+            not row
+            or row["consumed"]
+            or row["expires_at"] < datetime.now(timezone.utc)
     ):
         raise HTTPException(status_code=400, detail="invalid")
 
@@ -2281,18 +2284,18 @@ async def updateUser(payload: dict = Body(), conn: Connection = Depends(get_conn
     updates = []
     params = []
     if email:
-        updates.append(f"email=${len(params)+1}")
+        updates.append(f"email=${len(params) + 1}")
         params.append(email)
     if first_name:
-        updates.append(f"first_name=${len(params)+1}")
+        updates.append(f"first_name=${len(params) + 1}")
         params.append(first_name)
     if last_name:
-        updates.append(f"last_name=${len(params)+1}")
+        updates.append(f"last_name=${len(params) + 1}")
         params.append(last_name)
 
     if updates:
         await conn.execute(
-            f"UPDATE \"user\" SET {', '.join(updates)} WHERE id=${len(params)+1}",
+            f"UPDATE \"user\" SET {', '.join(updates)} WHERE id=${len(params) + 1}",
             *params,
             UUID(user_id),
         )
@@ -2347,10 +2350,9 @@ async def login(request: Request, data: dict = Depends(decryptPayload()), conn: 
     return {"status": "link sent"}
 
 
-
 @app.post("/auth/set-recovery-phrase")
 async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayload(True)),
-                            conn: Connection = Depends(get_conn)):
+                            conn: Connection = Depends(get_conn), enforcer: SyncedEnforcer = Depends(getEnforcer)):
     token_str = data.get("token")
     if not token_str:
         raise HTTPException(status_code=400, detail="missing token")
@@ -2402,7 +2404,6 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
             digest,
         )
 
-
         await conn.execute(
             "INSERT INTO user_key (user_email, purpose, public_key) VALUES ($1,'sig',$2) ON CONFLICT (user_email, purpose) DO UPDATE SET public_key=EXCLUDED.public_key",
             userEmail,
@@ -2413,7 +2414,6 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
             "UPDATE \"user\" SET is_active=TRUE, has_set_recovery_phrase=TRUE WHERE email=$1",
             userEmail,
         )
-
 
         jti = str(uuid4())
         exp_dt = datetime.now(timezone.utc) + timedelta(minutes=5)
@@ -2427,10 +2427,18 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
         await redis.sadd("active_jtis", jti)
         await redis.publish("jwt_updates", f"add:{jti}")
         await conn.execute("UPDATE magic_link SET consumed=TRUE WHERE uuid=$1", UUID(link_uuid))
-        next_payload = {
-            "next_step": "/onboarding",
-            "exp": int((datetime.now(timezone.utc) + timedelta(minutes=5)).timestamp()),
-        }
+
+        roles = enforcer.get_roles_for_user_in_domain(userEmail, "*")
+        if "client_admin" in roles:
+            next_payload = {
+                "next_step": "/onboarding",
+                "exp": int((datetime.now(timezone.utc) + timedelta(minutes=5)).timestamp()),
+            }
+        else:
+            next_payload = {
+                "next_step": "/dashboard",
+                "exp": int((datetime.now(timezone.utc) + timedelta(minutes=5)).timestamp()),
+            }
         nav_token = generateJwtRs256(next_payload, request.app.state.privateKey)
         session_token = jwt.encode({"sub": userEmail, "jti": jti, "exp": exp_dt}, SECRET_KEY, algorithm="HS256")
         payload = {"token": nav_token}
@@ -2439,7 +2447,6 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
         response = JSONResponse(payload)
         response.set_cookie("session", session_token, httponly=True, secure=True)
         return response
-
 
 
 @app.post("/auth/get-recovery-params")
