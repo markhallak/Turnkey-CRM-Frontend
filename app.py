@@ -78,47 +78,31 @@ def getEnforcer(request: Request) -> SyncedEnforcer:
     return request.app.state.enforcer
 
 
-BYPASS_SESSION = os.getenv("BYPASS_SESSION_VERIFICATION", "false").lower() == "true"
+BYPASS_SESSION = True
+
 
 async def authorize(request: Request, user: SimpleUser = Depends(getCurrentUser),
                     enforcer: SyncedEnforcer = Depends(getEnforcer)):
     path = request.url.path
-    secure_paths = [
-        "/auth/invite",
-        "/auth/complete-onboarding",
-        "/auth/update-client-key",
-        "/auth/revoke",
-    ]
 
-    if path.startswith("/auth"):
-        if path in secure_paths and not BYPASS_SESSION:
-            if not user:
-                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="unauthenticated")
-            if path == "/auth/invite" and not enforcer.enforce(user.email, "*", path, request.method.lower()):
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
-        return True
+    if not BYPASS_SESSION:
+        if not user:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="unauthenticated")
+        if not user.setup_done and path != "/set-recovery-phrase":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="set-recovery-phrase")
+        if user.setup_done and not user.onboarding_done and path != "/onboarding":
+            if user.is_client:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="onboarding")
 
-    if not user:
-        if BYPASS_SESSION:
-            return True
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="unauthenticated")
+        sub = str(user.email)
+        domain = "*"
+        obj = path
+        act = request.method.lower()
 
-    if not user.setup_done and path != "/set-recovery-phrase":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="set-recovery-phrase")
-    if user.setup_done and not user.onboarding_done and path != "/onboarding":
-        if user.is_client:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="onboarding")
-    sub = str(user.email)
-    domain = "*"
-    obj = path
-    act = request.method.lower()
-
-    if not enforcer.enforce(sub, domain, obj, act):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+        if not enforcer.enforce(sub, domain, obj, act):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
 
     return True
-
-
 
 
 def decryptPayload(includePublic: bool = False):
@@ -203,7 +187,7 @@ async def lifespan(app: FastAPI):
 
     await adapter.load_policy(enforcer.get_model())
     enforcer.build_role_links()
-
+    app.state.casbin_watcher = watcher
     app.state.enforcer = enforcer
 
     loop = asyncio.get_running_loop()
@@ -403,18 +387,13 @@ async def globalSearch(
 
 @app.post("/get-notifications")
 async def getNotifications(
-        size: int = Query(..., gt=0, description="Number of notifications per page"),
-        last_seen_created_at: Optional[str] = Query(
-            None,
-            description="ISO-8601 UTC timestamp cursor (e.g. 2025-05-24T12:00:00Z)"
-        ),
-        last_seen_id: Optional[UUID] = Query(
-            None,
-            description="UUID cursor to break ties if multiple notifications share the same timestamp"
-        ),
+data: dict = Depends(decryptPayload()),
         conn: Connection = Depends(get_conn)
 ):
-    # parse or default to now
+    last_seen_created_at = data["last_seen_created_at"]
+    last_seen_id = data["last_seen_id"]
+    size = data["size"]
+
     if last_seen_created_at:
         try:
             dt = datetime.fromisoformat(last_seen_created_at)
@@ -463,7 +442,7 @@ async def getNotifications(
 
 @app.post("/get-profile-details")
 async def getProfileDetails(
-        email: str = Query(..., description="Email of the user whose profile to fetch"),
+        user: SimpleUser = Depends(getCurrentUser),
         conn: Connection = Depends(get_conn)
 ):
     sql = """
@@ -474,9 +453,9 @@ async def getProfileDetails(
             LIMIT 1;
         """
 
-    row = await conn.fetchrow(sql, email)
+    row = await conn.fetchrow(sql, user.email)
     if not row:
-        raise HTTPException(status_code=404, detail=f"User {email} not found")
+        raise HTTPException(status_code=404, detail=f"User {user.email} not found")
 
     return {
         "first_name": row["first_name"],
@@ -525,14 +504,14 @@ async def getDashboardMetrics(conn: Connection = Depends(get_conn)):
 
 @app.post("/get-calendar-events")
 async def getCalendarEvents(
-        month: int = Query(
-            ...,
-            ge=1,
-            le=12,
-            description="Month index (1–12) to fetch calendar events for"
-        ),
+data: dict = Depends(decryptPayload()),
         conn: Connection = Depends(get_conn)
 ):
+    month = data["month"]
+
+    if month < 1 or month > 12:
+        raise Exception()
+
     sql = """
         SELECT
           p.*,
@@ -2255,7 +2234,6 @@ async def inviteUser(
         conn: Connection = Depends(get_conn),
         enforcer: SyncedEnforcer = Depends(getEnforcer)
 ):
-
     email_to_invite = payload.get("emailToInvite")
     account_type = payload.get("accountType")
     first_name = payload.get("firstName", "")
@@ -2290,13 +2268,13 @@ async def inviteUser(
         email_to_invite,
         account_type.replace(' ', '_').lower()
     )
-    enforcer.get_watcher().update()
+    request.app.state.casbin_watcher.update()
 
     return {"status": "Link will be sent shortly"}
 
 
 @app.put("/update-user")
-async def updateUser(payload: dict = Body(), conn: Connection = Depends(get_conn),
+async def updateUser(request: Request, payload: dict = Body(), conn: Connection = Depends(get_conn),
                      enforcer: SyncedEnforcer = Depends(getEnforcer)):
     user_id = payload.get("userId")
     if not user_id or not await isUUIDv4(user_id):
@@ -2337,7 +2315,7 @@ async def updateUser(payload: dict = Body(), conn: Connection = Depends(get_conn
             subj,
             role.replace(' ', '_').lower(),
         )
-        enforcer.get_watcher().update()
+        request.app.state.casbin_watcher.update()
 
     return {"status": "updated"}
 
