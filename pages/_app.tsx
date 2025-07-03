@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import "@/styles/input-border-animation.css";
 import { Toaster } from "@/components/ui/toaster";
 import { ToastProvider } from "@/components/ui/toast";
+import { loadClientKeys } from "@/lib/clientKeys";
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();
@@ -53,6 +54,22 @@ export default function App({ Component, pageProps }: AppProps) {
       router.push = originalPush;
     };
   }, [router]);
+
+  useEffect(() => {
+    const check = async () => {
+      const path = router.pathname;
+      if (path === "/auth/login" || path === "/set-recovery-phrase") return;
+      const hasSession = document.cookie
+        .split("; ")
+        .some((c) => c.startsWith("session="));
+      const hasKeys = await loadClientKeys();
+      if (!hasSession || !hasKeys) {
+        document.cookie = "session=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
+        router.replace("/auth/login");
+      }
+    };
+    check();
+  }, [router.pathname]);
 
   const noSidebar = ["/login", "/onboarding", "/set-recovery-phrase"].includes(router.pathname);
 

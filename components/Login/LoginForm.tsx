@@ -46,8 +46,13 @@ export default function LoginForm({
     }
     setLoading(true);
     try {
-      const r = await encryptPost("/auth/login", { email });
-      await decryptPost(r);
+      const r = await fetch("/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+        credentials: "include",
+      });
+      if (!r.ok) throw new Error(`status ${r.status}`);
       toast({ description: "Check your email for a login link." });
     } catch (err: any) {
       const msg = typeof err.message === "string" ? err.message : "";
