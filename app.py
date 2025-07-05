@@ -3,6 +3,7 @@ import base64
 import json
 import os
 import random
+import time
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
@@ -13,11 +14,9 @@ import httpx
 import jwt
 import nacl.bindings
 import uvicorn
-from argon2.low_level import hash_secret_raw, Type
 from asyncpg import create_pool, Pool, Connection
 from casbin import SyncedEnforcer
 from casbin_redis_watcher import new_watcher, WatcherOptions
-from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from databases import Database
 from fastapi import FastAPI, HTTPException, Query, Body, Request, Depends, status
@@ -42,7 +41,6 @@ class SimpleUser:
 
 async def getCurrentUser(request: Request) -> SimpleUser | None:
     token = request.cookies.get("session")
-    print("TOKEN: ", token)
     if not token:
         return None
     try:
@@ -50,8 +48,6 @@ async def getCurrentUser(request: Request) -> SimpleUser | None:
     except Exception as e:
         print("EXCEPTION: ", e)
         return None
-
-    print("DATA: ", data)
 
     jti = data.get("jti")
     email = data.get("sub")
@@ -98,7 +94,19 @@ async def authorize(request: Request, user: SimpleUser = Depends(getCurrentUser)
             and not path.startswith("/auth/validate-signup-token")
             and not path.startswith("/auth/validate-login-token")
             and not path.startswith("/auth/me")
+            and not path.startswith("/auth/set-recovery-phrase")
+            and not path.startswith("/auth/refresh-session")
     ):
+        if not user:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="unauthenticated")
+
+        if not user.setup_done and path != "/set-recovery-phrase":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="set-recovery-phrase")
+
+        if user.setup_done and not user.onboarding_done and path != "/onboarding":
+            if user.is_client:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="onboarding")
+
         perms = enforcer.get_policy()  # [[sub, dom, obj, act], …]
 
         # 2. every “g” (role-mapping) rule it knows
@@ -109,20 +117,6 @@ async def authorize(request: Request, user: SimpleUser = Depends(getCurrentUser)
 
         # 4. all permissions this user already enjoys
         user_perms = enforcer.get_permissions_for_user(user.email)
-
-        # put whatever logger you use here
-        print("PERM RULES:", perms)
-        print("GROUP RULES:", groups)
-        print("ROLES FOR", user.email, ":", roles)
-        print("PERMS FOR", user.email, ":", user_perms)
-
-        if not user:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="unauthenticated")
-        if not user.setup_done and path != "/set-recovery-phrase":
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="set-recovery-phrase")
-        if user.setup_done and not user.onboarding_done and path != "/onboarding":
-            if user.is_client:
-                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="onboarding")
 
         sub = str(user.email)
         domain = "*"
@@ -441,21 +435,22 @@ async def validateLoginToken(
 
     next_payload = {
         "next_step": "/dashboard",
-        "exp": int((datetime.now(timezone.utc) + timedelta(minutes=5)).timestamp()),
+        "exp": int((datetime.now(timezone.utc) + timedelta(minutes=(60 * 60 * 72))).timestamp()),
     }
     nav_token = generateJwtRs256(next_payload, request.app.state.privateKey)
     session_token = jwt.encode({"sub": userEmail, "jti": jti, "exp": exp_dt}, SECRET_KEY, algorithm="HS256")
     response = JSONResponse({"token": nav_token})
-    response.delete_cookie("session", path="/")
     response.set_cookie(
         "session",
         session_token,
         httponly=True,
-        secure=False,
-        samesite="lax",
+        secure=True,
+        samesite="none",
+        domain="localhost",
         path="/",
-        max_age=60 * 60 * 72,
+        max_age=60 * 5,
     )
+
     return response
 
 
@@ -562,7 +557,6 @@ async def getProfileDetails(
         user: SimpleUser = Depends(getCurrentUser),
         conn: Connection = Depends(get_conn)
 ):
-    print("USER GET PROFILE DETAILS: ", user)
     email = user.email if user else None
     if not email:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="unauthenticated")
@@ -2368,13 +2362,14 @@ async def updateInsuranceData(
 @app.post("/auth/invite")
 async def inviteUser(
         request: Request,
-        payload: dict = Body(),
-        conn: Connection = Depends(get_conn)
+        data: dict = Depends(decryptPayload()),
+        conn: Connection = Depends(get_conn),
+        enforcer: SyncedEnforcer = Depends(getEnforcer)
 ):
-    email_to_invite = payload.get("emailToInvite")
-    account_type = payload.get("accountType")
-    first_name = payload.get("firstName", "")
-    last_name = payload.get("lastName", "")
+    email_to_invite = data.get("emailToInvite")
+    account_type = data.get("accountType")
+    first_name = data.get("firstName", "")
+    last_name = data.get("lastName", "")
 
     if not email_to_invite:
         raise HTTPException(status_code=400, detail="Invalid email")
@@ -2382,6 +2377,7 @@ async def inviteUser(
         raise HTTPException(status_code=400, detail="Invalid account type")
 
     hex_color = f"#{random.randint(0, 0xFFFFFF):06x}"
+
     await conn.fetchrow(
         "INSERT INTO \"user\" (email, first_name, last_name, hex_color, is_active, is_client) "
         "VALUES ($1,$2,$3,$4,FALSE,$5) RETURNING id",
@@ -2400,19 +2396,25 @@ async def inviteUser(
         ttlHours=24,
     )
 
-    await conn.execute(
-        "INSERT INTO casbin_rule (ptype, subject, domain, object, action) VALUES ('g',$1,$2,'*','')",
+    role = account_type.replace(" ", "_").lower()
+    domain = "*"
+
+    added: bool = enforcer.add_role_for_user_in_domain(
         email_to_invite,
-        account_type.replace(' ', '_').lower()
+        role,
+        domain,
     )
+
+    if not added:
+        raise HTTPException(status_code=500, detail="Role assignment failed")
+
     request.app.state.casbin_watcher.update()
 
     return {"status": "Link will be sent shortly"}
 
 
 @app.put("/update-user")
-async def updateUser(request: Request, payload: dict = Body(), conn: Connection = Depends(get_conn),
-                     enforcer: SyncedEnforcer = Depends(getEnforcer)):
+async def updateUser(request: Request, payload: dict = Body(), conn: Connection = Depends(get_conn)):
     user_id = payload.get("userId")
     if not user_id or not await isUUIDv4(user_id):
         raise HTTPException(status_code=400, detail="Invalid userId")
@@ -2542,18 +2544,13 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
             clientPub,
         )
 
-        await conn.execute(
-            "UPDATE \"user\" SET is_active=TRUE, has_set_recovery_phrase=TRUE WHERE email=$1",
-            userEmail,
-        )
-
         jti = str(uuid4())
-        exp_dt = datetime.now(timezone.utc) + timedelta(minutes=5)
+        exp_dt = datetime.now(timezone.utc) + timedelta(hours=72)
         await conn.execute(
             "INSERT INTO jwt_token (jti, user_email, expires_at, revoked) VALUES ($1,$2,$3,FALSE)",
             jti,
             userEmail,
-            exp_dt,
+            exp_dt
         )
         redis = request.app.state.redis
         await redis.sadd("active_jtis", jti)
@@ -2561,6 +2558,12 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
         await conn.execute("UPDATE magic_link SET consumed=TRUE WHERE uuid=$1", UUID(link_uuid))
 
         roles = enforcer.get_roles_for_user_in_domain(userEmail, "*")
+        await conn.execute(
+            "UPDATE \"user\" SET is_active=TRUE, onboarding_done=$2, has_set_recovery_phrase=TRUE WHERE email=$1",
+            userEmail,
+            ("client_admin" in roles)
+        )
+
         if "client_admin" in roles:
             next_payload = {
                 "next_step": "/onboarding",
@@ -2571,20 +2574,27 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
                 "next_step": "/dashboard",
                 "exp": int((datetime.now(timezone.utc) + timedelta(minutes=5)).timestamp()),
             }
+
         nav_token = generateJwtRs256(next_payload, request.app.state.privateKey)
         session_token = jwt.encode({"sub": userEmail, "jti": jti, "exp": exp_dt}, SECRET_KEY, algorithm="HS256")
         payload = {"token": nav_token}
+
         if clientPub is not None:
             payload = encryptForClient(payload, clientPub, request.app)
+
         response = JSONResponse(payload)
-        response.delete_cookie("session", path="/")
-        response.set_cookie("session",
-                            session_token,
-                            httponly=True,
-                            secure=False,  # fine for http:// during local dev
-                            samesite="none",  # default, but spell it out
-                            path="/",
-                            max_age=60 * 60 * 72)
+        response.set_cookie(
+            "session",
+            session_token,
+            httponly=True,
+            secure=True,
+            samesite="none",
+            domain="localhost",
+            path="/",
+            max_age=60 * 5,
+        )
+
+        request.app.state.casbin_watcher.update()
 
         return response
 
@@ -2692,8 +2702,17 @@ async def refreshSession(request: Request, conn: Connection = Depends(get_conn))
     await conn.execute("UPDATE jwt_token SET expires_at=$1 WHERE jti=$2", exp_dt, jti)
     session_token = jwt.encode({"sub": email, "jti": jti, "exp": exp_dt}, SECRET_KEY, algorithm="HS256")
     resp = JSONResponse({"status": "ok"})
-    resp.delete_cookie("session", path="/")
-    resp.set_cookie("session", session_token, httponly=True, secure=False, samesite="lax", path="/", max_age=60 * 60 * 72)
+    resp.set_cookie(
+        "session",
+        session_token,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        domain="localhost",
+        path="/",
+        max_age=60 * 5,
+    )
+
     return resp
 
 

@@ -39,7 +39,10 @@ async def send_email(subject: str, body: str, recipient: str):
         "htmlContent": body
     }
 
-    response = requests.post(BREVO_URL, headers=headers, json=payload)
+    try:
+        response = requests.post(BREVO_URL, headers=headers, json=payload)
+    except Exception as e:
+        print(f"Failed to send email: {e}")
 
     if response.ok:
         print("Email sent successfully!")

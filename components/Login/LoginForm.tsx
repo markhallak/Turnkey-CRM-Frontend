@@ -46,7 +46,7 @@ export default function LoginForm({
     }
     setLoading(true);
     try {
-      const r = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL }/auth/login`, {
+      const r = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),

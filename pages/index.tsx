@@ -7,7 +7,7 @@ export default function IndexPage() {
   useEffect(() => {
     const checkLogin = async () => {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL }/auth/me`, {        credentials: "include",});
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL }/auth/me`, {credentials: "include",});
         router.replace(res.ok ? "/dashboard" : "/login");
       } catch {
         router.replace("/login");
