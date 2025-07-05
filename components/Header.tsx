@@ -29,8 +29,8 @@ export async function fetchJson<T>(path: string, params: Record<string, any> = {
 
 export async function fetchWithRetry<T>(
   requestFn: () => Promise<T>,
-  retries = 3,
-  delayMs = 2000
+  retries = 2,
+  delayMs = 3000
 ) {
   let lastError: unknown;
   for (let attempt = 1; attempt <= retries; attempt++) {
