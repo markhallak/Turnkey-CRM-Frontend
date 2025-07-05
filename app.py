@@ -448,7 +448,7 @@ async def validateLoginToken(
         samesite="none",
         domain="localhost",
         path="/",
-        max_age=60 * 5,
+        max_age=60 * 30,
     )
 
     return response
@@ -2591,7 +2591,7 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
             samesite="none",
             domain="localhost",
             path="/",
-            max_age=60 * 5,
+            max_age=60 * 30,
         )
 
         request.app.state.casbin_watcher.update()
@@ -2710,7 +2710,7 @@ async def refreshSession(request: Request, conn: Connection = Depends(get_conn))
         samesite="none",
         domain="localhost",
         path="/",
-        max_age=60 * 5,
+        max_age=60 * 30,
     )
 
     return resp
