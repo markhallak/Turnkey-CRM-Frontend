@@ -435,7 +435,7 @@ async def validateLoginToken(
 
     next_payload = {
         "next_step": "/dashboard",
-        "exp": int((datetime.now(timezone.utc) + timedelta(minutes=(60 * 60 * 72))).timestamp()),
+        "exp": int((datetime.now(timezone.utc) + timedelta(minutes=(60 * 24))).timestamp()),
     }
     nav_token = generateJwtRs256(next_payload, request.app.state.privateKey)
     session_token = jwt.encode({"sub": userEmail, "jti": jti, "exp": exp_dt}, SECRET_KEY, algorithm="HS256")
@@ -448,7 +448,7 @@ async def validateLoginToken(
         samesite="none",
         domain="localhost",
         path="/",
-        max_age=60 * 30,
+        max_age=60 * 60,
     )
 
     return response
@@ -2591,7 +2591,7 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
             samesite="none",
             domain="localhost",
             path="/",
-            max_age=60 * 30,
+            max_age=60 * 60,
         )
 
         request.app.state.casbin_watcher.update()
@@ -2710,7 +2710,7 @@ async def refreshSession(request: Request, conn: Connection = Depends(get_conn))
         samesite="none",
         domain="localhost",
         path="/",
-        max_age=60 * 30,
+        max_age=60 * 60,
     )
 
     return resp
