@@ -115,7 +115,7 @@ export default function App({ Component, pageProps }: AppProps) {
     };
 
     // Schedule periodic refresh every 4 minutes
-    refreshInterval.current = setInterval(doRefresh, 1000 * 60 * 4);
+    refreshInterval.current = setInterval(doRefresh, 1000 * 60 * 19);
     return () => clearInterval(refreshInterval.current as NodeJS.Timeout);
   }, [isAuthenticated, router]);
 
