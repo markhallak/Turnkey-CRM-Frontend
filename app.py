@@ -502,8 +502,7 @@ async def globalSearch(
     globalSearchSql = """
         SELECT source_table, record_id, search_text, is_deleted
           FROM global_search
-         WHERE is_deleted = FALSE
-           AND length($1::text) >= 3
+         WHERE  length($1::text) >= 3
            AND search_text ILIKE '%' || $1 || '%'
          ORDER BY source_table, record_id
          LIMIT 10;
@@ -524,7 +523,7 @@ async def getAccountManagerClientRelations(conn: Connection = Depends(get_conn))
     sql = """
             SELECT amc.account_manager_email, amc.client_id, c.company_name
               FROM account_manager_client amc
-              JOIN client c ON c.id = amc.client_id AND c.is_deleted = FALSE
+              JOIN client c ON c.id = amc.client_id 
              ORDER BY amc.account_manager_email;
         """
     try:
@@ -664,7 +663,7 @@ async def getProfileDetails(
             SELECT first_name, hex_color
             FROM "user"
             WHERE email = $1
-              AND is_deleted = FALSE
+              
             LIMIT 1;
         """
 
@@ -698,9 +697,7 @@ async def getProjectAssessments(
       p.planned_resolution,
       p.material_parts_needed
     FROM project p
-    WHERE
-      p.id          = $1
-      AND p.is_deleted = FALSE;
+    WHERE p.id          = $1
     """
 
     async with db_pool.acquire() as conn:
@@ -752,9 +749,7 @@ async def getCalendarEvents(
           p.*,
           COALESCE(p.scheduled_date, p.due_date) AS event_date
         FROM project p
-        WHERE
-          p.is_deleted = FALSE
-          AND (
+        WHERE  (
             (p.scheduled_date IS NOT NULL AND EXTRACT(MONTH FROM p.scheduled_date) = $1)
             OR
             (p.scheduled_date IS NULL     AND EXTRACT(MONTH FROM p.due_date)       = $1)
@@ -825,9 +820,8 @@ async def getProjects(
     FROM project p
     JOIN client  c ON c.id = p.client_id
     JOIN status  s ON s.id = p.status_id AND s.category = 'project'
-    WHERE
       (p.created_at, p.id) < ($1::timestamptz, $2::uuid)
-      AND p.is_deleted = FALSE
+      
     ORDER BY p.created_at DESC, p.id DESC
     LIMIT $3;
     """
@@ -869,7 +863,7 @@ async def getProjectStatuses(
             SELECT id, value, color
             FROM status
             WHERE category = 'project'
-              AND is_deleted = FALSE
+              
             ORDER BY value;
         """
 
@@ -891,7 +885,6 @@ async def getProjectTypes(
     sql = """
             SELECT id, value
             FROM project_type
-            WHERE is_deleted = FALSE
             ORDER BY value;
         """
 
@@ -913,7 +906,6 @@ async def getProjectTrades(
     sql = """
             SELECT id, value
             FROM project_trade
-            WHERE is_deleted = FALSE
             ORDER BY value;
         """
 
@@ -935,7 +927,6 @@ async def getProjectPriorities(
     sql = """
             SELECT id, value, color
             FROM project_priority
-            WHERE is_deleted = FALSE
             ORDER BY value;
         """
 
@@ -962,8 +953,7 @@ async def getAllClientAdmins(
                AND r.subject = u.email
                AND r.domain = 'client_admin'
               JOIN client c ON c.id = u.client_id
-             WHERE u.is_deleted = FALSE
-               AND c.is_deleted = FALSE
+               
              ORDER BY c.company_name;
         """
     try:
@@ -988,8 +978,7 @@ async def getAccountManagers(
                 ON r.ptype = 'g'
                AND r.subject = u.email
                AND r.domain = 'employee_account_manager'
-             WHERE u.is_deleted = FALSE
-               AND u.is_active = TRUE
+             WHERE  u.is_active = TRUE
              ORDER BY u.first_name;
         """
     try:
@@ -1010,7 +999,6 @@ async def getStates(
     sql = """
             SELECT id, name
               FROM state
-             WHERE is_deleted = FALSE
              ORDER BY name;
         """
     try:
@@ -1029,7 +1017,6 @@ async def getUsers(conn: Connection = Depends(get_conn)):
     sql = """
             SELECT id, email, first_name, last_name
               FROM "user"
-             WHERE is_deleted = FALSE
              ORDER BY first_name;
         """
     try:
@@ -1069,22 +1056,22 @@ async def createNewProject(
 
     async with conn.transaction():
         priorityId = await conn.fetchval(
-            "SELECT id FROM project_priority WHERE value=$1 AND is_deleted=FALSE LIMIT 1;",
+            "SELECT id FROM project_priority WHERE value=$1  LIMIT 1;",
             priorityValue,
         )
         tradeId = await conn.fetchval(
-            "SELECT id FROM project_trade WHERE value=$1 AND is_deleted=FALSE LIMIT 1;",
+            "SELECT id FROM project_trade WHERE value=$1  LIMIT 1;",
             tradeValue,
         )
         stateId = await conn.fetchval(
-            "SELECT id FROM state WHERE name=$1 AND is_deleted=FALSE LIMIT 1;",
+            "SELECT id FROM state WHERE name=$1  LIMIT 1;",
             stateName,
         )
         typeId = await conn.fetchval(
-            "SELECT id FROM project_type WHERE is_deleted=FALSE LIMIT 1;"
+            "SELECT id FROM project_type WHERE LIMIT 1;"
         )
         statusId = await conn.fetchval(
-            "SELECT id FROM status WHERE category='project' AND value='Open' AND is_deleted=FALSE LIMIT 1;"
+            "SELECT id FROM status WHERE category='project' AND value='Open'  LIMIT 1;"
         )
         projectId = await conn.fetchval(
             """
@@ -1193,41 +1180,37 @@ async def fetchProject(
 
           JOIN "user" cu
             ON cu.id = p.client_id
-           AND cu.is_deleted = FALSE
+           
 
           LEFT JOIN client c
             ON c.id = cu.client_id
-           AND c.is_deleted = FALSE
+           
            AND cut.name = 'client'
 
           JOIN project_priority pp
             ON pp.id = p.priority_id
-           AND pp.is_deleted = FALSE
+           
 
           JOIN project_type pt
             ON pt.id = p.type_id
-           AND pt.is_deleted = FALSE
+           
 
           JOIN state st
             ON st.id = p.state_id
-           AND st.is_deleted = FALSE
+           
 
           JOIN project_trade tr
             ON tr.id = p.trade_id
-           AND tr.is_deleted = FALSE
+           
 
           JOIN status s
             ON s.id = p.status_id
            AND s.category = 'project'
-           AND s.is_deleted = FALSE
+           
 
           JOIN "user" au
             ON au.id = p.assignee_id
-           AND au.is_deleted = FALSE
-
-        WHERE
-          p.id = $1
-          AND p.is_deleted = FALSE;
+          WHERE p.id = $1
         """
     try:
         row = await conn.fetchrow(sql, project_id)
@@ -1288,16 +1271,14 @@ async def getMessages(
             FROM message m
             JOIN project p
               ON p.id = m.project_id
-             AND p.is_deleted = FALSE
+             
             JOIN "user" u
               ON u.id = m.sender_id
-             AND u.is_deleted = FALSE
+             
             JOIN user_type ut
               ON ut.id = u.type_id
-             AND ut.is_deleted = FALSE
-            WHERE
-              m.is_deleted    = FALSE
-              AND m.project_id = $1
+             
+            WHERE  m.project_id = $1
               AND (m.created_at, m.id) < ($2::timestamptz, $3::uuid)
             ORDER BY m.created_at DESC, m.id DESC
             LIMIT $4;
@@ -1370,10 +1351,9 @@ async def fetchProjectQuotesEndpoint(
         JOIN status s
           ON s.id = q.status_id
          AND s.category = 'quote'
-         AND s.is_deleted = FALSE
-        WHERE
+         
           q.project_id = $1
-          AND q.is_deleted = FALSE
+          
           AND (q.created_at, q.id) < ($2::timestamptz, $3::uuid)
         ORDER BY q.created_at DESC, q.id DESC
         LIMIT $4;
@@ -1451,9 +1431,8 @@ async def fetchProjectDocumentsEndpoint(
           d.created_at          AS date_uploaded,
           COUNT(*) OVER()       AS total_count
         FROM document d
-        WHERE
           d.project_id = $1
-          AND d.is_deleted = FALSE
+          
           AND (d.created_at, d.id) < ($2::timestamptz, $3::uuid)
         ORDER BY d.created_at DESC, d.id DESC
         LIMIT $4;
@@ -1539,14 +1518,14 @@ async def getClients(
             JOIN status s
               ON s.id = c.status_id
              AND s.category = 'client'
-             AND s.is_deleted = FALSE
+             
             JOIN client_type ct
               ON ct.id = c.type_id
-             AND ct.is_deleted = FALSE
+             
             LEFT JOIN client_aggregates ca
               ON ca.client_id = c.id
             WHERE (c.created_at, c.id) < ($1::timestamptz, $2::uuid)
-              AND c.is_deleted = FALSE
+              
             ORDER BY c.created_at DESC, c.id DESC
             LIMIT $3;
         """
@@ -1580,7 +1559,6 @@ async def getClientTypes(conn: Connection = Depends(get_conn)):
     sql = """
             SELECT id, value
             FROM client_type
-            WHERE is_deleted = FALSE
             ORDER BY value;
         """
 
@@ -1597,7 +1575,7 @@ async def getClientStatuses(conn: Connection = Depends(get_conn)):
             SELECT id, value, color
             FROM status
             WHERE category = 'client'
-              AND is_deleted = FALSE
+              
             ORDER BY value;
         """
 
@@ -1634,15 +1612,15 @@ async def createNewClient(
 
     async with conn.transaction():
         typeId = await conn.fetchval(
-            "SELECT id FROM client_type WHERE value=$1 AND is_deleted=FALSE LIMIT 1;",
+            "SELECT id FROM client_type WHERE value=$1  LIMIT 1;",
             clientType,
         )
         stateId = await conn.fetchval(
-            "SELECT id FROM state WHERE name=$1 AND is_deleted=FALSE LIMIT 1;",
+            "SELECT id FROM state WHERE name=$1  LIMIT 1;",
             stateName,
         )
         statusId = await conn.fetchval(
-            "SELECT id FROM status WHERE category='client' AND value='Active' AND is_deleted=FALSE LIMIT 1;"
+            "SELECT id FROM status WHERE category='client' AND value='Active'  LIMIT 1;"
         )
         clientId = await conn.fetchval(
             """
@@ -1715,9 +1693,9 @@ async def fetchClient(
           c.updates,
           c.special_notes
         FROM client c
-        JOIN state st ON st.id = c.state_id AND st.is_deleted = FALSE
-        JOIN status s ON s.id = c.status_id AND s.category = 'client' AND s.is_deleted = FALSE
-        WHERE c.id = $1 AND c.is_deleted = FALSE;
+        JOIN state st ON st.id = c.state_id 
+        JOIN status s ON s.id = c.status_id AND s.category = 'client' 
+        WHERE c.id = $1 ;
     """
 
     try:
@@ -1771,10 +1749,9 @@ async def fetchClientInvoices(
           s.value         AS status_value,
           COUNT(*) OVER() AS total_count
         FROM invoice i
-        JOIN status s ON s.id = i.status_id AND s.category = 'invoice' AND s.is_deleted = FALSE
-        WHERE
+        JOIN status s ON s.id = i.status_id AND s.category = 'invoice' 
           i.client_id = $1
-          AND i.is_deleted = FALSE
+          
           AND (i.created_at, i.id) < ($2::timestamptz, $3::uuid)
           AND ($4::text IS NULL OR i.number::text ILIKE '%' || $4 || '%')
         ORDER BY i.created_at DESC, i.id DESC
@@ -1852,10 +1829,9 @@ async def fetchClientOnboardingDocuments(
           d.created_at     AS date_uploaded,
           COUNT(*) OVER()  AS total_count
         FROM document d
-        WHERE
           d.client_id = $1
           AND d.purpose = 'onboarding_paperwork'
-          AND d.is_deleted = FALSE
+          
           AND (d.created_at, d.id) < ($2::timestamptz, $3::uuid)
           AND ($4::text IS NULL OR d.file_name ILIKE '%' || $4 || '%')
         ORDER BY d.created_at DESC, d.id DESC
@@ -1945,10 +1921,9 @@ async def getInsuranceDocuments(
           d.created_at     AS date_uploaded,
           COUNT(*) OVER()  AS total_count
         FROM document d
-        WHERE
           d.client_id = $1
           AND d.purpose = 'insurance'
-          AND d.is_deleted = FALSE
+          
           AND (d.created_at, d.id) < ($2::timestamptz, $3::uuid)
           AND ($4::text IS NULL OR d.file_name ILIKE '%' || $4 || '%')
         ORDER BY d.created_at DESC, d.id DESC
@@ -2027,11 +2002,10 @@ async def fetchClientProjects(
           s.value         AS status_value,
           COUNT(*) OVER() AS total_count
         FROM project p
-        JOIN status s ON s.id = p.status_id AND s.category = 'project' AND s.is_deleted = FALSE
-        WHERE
+        JOIN status s ON s.id = p.status_id AND s.category = 'project' 
           p.client_id = $1
           AND s.value = 'Open'
-          AND p.is_deleted = FALSE
+          
           AND (p.created_at, p.id) < ($2::timestamptz, $3::uuid)
           AND ($4::text IS NULL OR p.business_name ILIKE '%' || $4 || '%')
         ORDER BY p.created_at DESC, p.id DESC
@@ -2112,12 +2086,12 @@ async def getBillings(
         JOIN status s
           ON s.id = i.status_id
          AND s.category = 'billing'
-         AND s.is_deleted = FALSE
+         
         LEFT JOIN document d
           ON d.id = i.file_id
-         AND d.is_deleted = FALSE
+         
         WHERE (i.created_at, i.id) < ($1::timestamptz, $2::uuid)
-          AND i.is_deleted = FALSE
+          
         ORDER BY i.created_at DESC, i.id DESC
         LIMIT $3;
     """
@@ -2152,7 +2126,7 @@ async def getBillingStatuses(conn: Connection = Depends(get_conn)):
             SELECT id, value, color
             FROM status
             WHERE category = 'billing'
-              AND is_deleted = FALSE
+              
             ORDER BY value;
         """
 
@@ -2169,7 +2143,7 @@ async def getInvoiceStatuses(conn: Connection = Depends(get_conn)):
             SELECT id, value, color
               FROM status
              WHERE category = 'invoice'
-               AND is_deleted = FALSE
+               
              ORDER BY value;
         """
     try:
@@ -2185,7 +2159,7 @@ async def getQuoteStatuses(conn: Connection = Depends(get_conn)):
             SELECT id, value, color
               FROM status
              WHERE category = 'quote'
-               AND is_deleted = FALSE
+               
              ORDER BY value;
         """
     try:
@@ -2292,7 +2266,7 @@ async def createNewInvoice(
         )
 
         statusId = await conn.fetchval(
-            "SELECT id FROM status WHERE category='billing' AND value='Pending' AND is_deleted=FALSE LIMIT 1;"
+            "SELECT id FROM status WHERE category='billing' AND value='Pending'  LIMIT 1;"
         )
 
         invoiceId = await conn.fetchval(
@@ -2350,7 +2324,7 @@ async def createNewQuote(
         )
 
         statusId = await conn.fetchval(
-            "SELECT id FROM status WHERE category='quote' AND value='Pending' AND is_deleted=FALSE LIMIT 1;"
+            "SELECT id FROM status WHERE category='quote' AND value='Pending'  LIMIT 1;"
         )
 
         quoteId = await conn.fetchval(
@@ -2377,8 +2351,8 @@ async def getInvoice(
     sql = """
         SELECT i.*, d.file_url, d.document_type
           FROM invoice i
-          LEFT JOIN document d ON d.id = i.file_id AND d.is_deleted = FALSE
-         WHERE i.id = $1 AND i.is_deleted = FALSE
+          LEFT JOIN document d ON d.id = i.file_id 
+         WHERE i.id = $1 
          LIMIT 1;
     """
     row = await conn.fetchrow(sql, id)
@@ -2395,8 +2369,8 @@ async def getQuote(
     sql = """
         SELECT q.*, d.file_url, d.document_type
           FROM quote q
-          LEFT JOIN document d ON d.id = q.file_id AND d.is_deleted = FALSE
-         WHERE q.id = $1 AND q.is_deleted = FALSE
+          LEFT JOIN document d ON d.id = q.file_id 
+         WHERE q.id = $1 
          LIMIT 1;
     """
     row = await conn.fetchrow(sql, id)
@@ -2428,27 +2402,27 @@ async def getOnboardingData(
         SELECT satellite_office_address, organization_type, establishment_year,
                annual_revenue, accepted_payment_methods, naics_code, duns_number
           FROM client_onboarding_general
-         WHERE client_id = $1 AND is_deleted = FALSE
+         WHERE client_id = $1 
          LIMIT 1;
     """
     serviceSql = """
         SELECT coverage_area, admin_staff_count, field_staff_count, licenses,
                working_hours, covers_after_hours, covers_weekend_calls
           FROM client_onboarding_service
-         WHERE client_id = $1 AND is_deleted = FALSE
+         WHERE client_id = $1 
          LIMIT 1;
     """
     contactSql = """
         SELECT dispatch_supervisor, field_supervisor, management_supervisor,
                regular_hours_contact, emergency_hours_contact
           FROM client_onboarding_contact
-         WHERE client_id = $1 AND is_deleted = FALSE
+         WHERE client_id = $1 
          LIMIT 1;
     """
     loadSql = """
         SELECT avg_monthly_tickets_last4, po_source_split, monthly_po_capacity
           FROM client_onboarding_load
-         WHERE client_id = $1 AND is_deleted = FALSE
+         WHERE client_id = $1 
          LIMIT 1;
     """
     tradeSql = """
@@ -2456,18 +2430,18 @@ async def getOnboardingData(
           FROM client_trade_coverage tc
           JOIN project_trade pt ON pt.id = tc.project_trade_id
          WHERE tc.client_id = $1
-           AND tc.is_deleted = FALSE
-           AND pt.is_deleted = FALSE;
+           
+           ;
     """
     pricingSql = """
         SELECT item_label, regular_hours_rate, after_hours_rate, is_custom
           FROM client_pricing_structure
-         WHERE client_id = $1 AND is_deleted = FALSE;
+         WHERE client_id = $1 ;
     """
     refsSql = """
         SELECT company_name, contact_name, contact_email, contact_phone
           FROM client_references
-         WHERE client_id = $1 AND is_deleted = FALSE;
+         WHERE client_id = $1 ;
     """
 
     try:
@@ -2592,7 +2566,7 @@ async def saveOnboardingData(
             if not tradeValue or not coverageLevel:
                 continue
             tradeId = await conn.fetchval(
-                "SELECT id FROM project_trade WHERE value=$1 AND is_deleted=FALSE LIMIT 1;",
+                "SELECT id FROM project_trade WHERE value=$1  LIMIT 1;",
                 tradeValue,
             )
             if tradeId:
@@ -2825,7 +2799,7 @@ async def login(request: Request, data: dict = Depends(decryptPayload()), conn: 
     if not email:
         raise HTTPException(status_code=400, detail="Email required")
     row = await conn.fetchrow(
-        "SELECT id, is_blacklisted FROM \"user\" WHERE email=$1 AND is_deleted=FALSE",
+        "SELECT id, is_blacklisted FROM \"user\" WHERE email=$1 ",
         email,
     )
     if not row:
@@ -2873,7 +2847,7 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
         last_name = data.get("lastName", "")
         account_type = data.get("accountType", "Client")
         existing = await conn.fetchrow(
-            "SELECT id FROM \"user\" WHERE email=$1 AND is_deleted=FALSE",
+            "SELECT id FROM \"user\" WHERE email=$1 ",
             userEmail,
         )
         if not existing:
@@ -2997,7 +2971,7 @@ async def getRecoveryParams(email: str, conn: Connection = Depends(get_conn)):
         SELECT u.id, p.salt, p.kdf_params
           FROM "user" u
           JOIN user_recovery_params p ON p.user_email = u.email
-         WHERE u.email=$1 AND u.is_deleted=FALSE
+         WHERE u.email=$1 
         """,
         email,
     )
