@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Wrapper from "@/components/Wrapper";
 import {
   ColumnDef,
@@ -53,11 +53,18 @@ type TableField = {
   isSelect?: boolean;
   options?: string[];
 };
-type TableConfig = { name: string; fields: TableField[]; data: any[] };
+type TableConfig = {
+  name: string;
+  fields: TableField[];
+  data: any[];
+  table?: string;
+  category?: string;
+  fetchUrl?: string;
+};
 
 function GenericTable({ config }: { config: TableConfig }) {
   const [data, setData] = useState(() =>
-    config.data.map((item) => ({ ...item }))
+    (config.data || []).map((item) => ({ ...item }))
   );
   const [sorting, setSorting] = useState<SortingState>([]);
   const [isNewOpen, setIsNewOpen] = useState(false);
@@ -169,26 +176,89 @@ function GenericTable({ config }: { config: TableConfig }) {
     getPaginationRowModel: getPaginationRowModel(),
   });
 
-  const handleSave = () => {
-    if (isEditOpen) {
-      setData(
-        data.map((item) =>
-          item.id === selected.id ? { ...form, id: selected.id } : item
-        )
-      );
-    } else {
-      const newItem = { ...form, id: Date.now().toString() };
-      setData([...data, newItem]);
-      if (config.name === "User") {
-        handleInvite(form.email, form.user_type, form.first_name, form.last_name, form.assign_to);
+  const reload = async () => {
+    try {
+      const r = await encryptPost(config.fetchUrl || "", {});
+      const j = await decryptPost<any>(r);
+      if (!j) return;
+      const key = Object.keys(j)[0];
+      setData(j[key]);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      if (isEditOpen) {
+        if (config.name === "User") {
+          await encryptPost("/update-user", {
+            userId: selected.id,
+            email: form.email,
+            firstName: form.first_name,
+            lastName: form.last_name,
+            role: form.user_type,
+          });
+        } else if (config.name === "Employee Account Manager - Client Relations") {
+          await encryptPost("/create-account-manager-client-relation", {
+            account_manager_email: form.account_manager,
+            client_id: form.client,
+          });
+        } else {
+          await encryptPost("/admin/update-record", {
+            table: config.table,
+            id: selected.id,
+            ...form,
+            category: config.category,
+          });
+        }
+      } else {
+        if (config.name === "User") {
+          await handleInvite(
+            form.email,
+            form.user_type,
+            form.first_name,
+            form.last_name,
+            form.assign_to
+          );
+        } else if (config.name === "Employee Account Manager - Client Relations") {
+          await encryptPost("/create-account-manager-client-relation", {
+            account_manager_email: form.account_manager,
+            client_id: form.client,
+          });
+        } else {
+          await encryptPost("/admin/create-record", {
+            table: config.table,
+            ...form,
+            category: config.category,
+          });
+        }
       }
+      await reload();
+    } catch (err) {
+      console.error(err);
     }
     setIsNewOpen(false);
     setIsEditOpen(false);
   };
 
-  const handleDelete = () => {
-    setData(data.filter((item) => item.id !== selected.id));
+  const handleDelete = async () => {
+    try {
+      if (config.name === "Employee Account Manager - Client Relations") {
+        await encryptPost("/delete-account-manager-client-relation", {
+          account_manager_email: selected.account_manager,
+          client_id: selected.client,
+        });
+      } else if (config.name !== "User") {
+        await encryptPost("/admin/delete-record", {
+          table: config.table,
+          id: selected.id,
+        });
+      }
+      await reload();
+    } catch (err) {
+      console.error(err);
+    }
     setIsDeleteOpen(false);
   };
 
@@ -446,140 +516,133 @@ function GenericTable({ config }: { config: TableConfig }) {
 }
 
 export default function AdminPage() {
-  const baseConfigs: TableConfig[] = [
-    {
-      name: "Project Priority",
-      fields: [
-        { key: "value", header: "Value" },
-        { key: "color", header: "Color", isColor: true },
-      ],
-      data: [
-        { id: "1", value: "High", color: "red-500" },
-        { id: "2", value: "Low", color: "green-500" },
-      ],
-    },
-    {
-      name: "Project Type",
-      fields: [{ key: "value", header: "Value" }],
-      data: [
-        { id: "1", value: "Residential" },
-        { id: "2", value: "Commercial" },
-      ],
-    },
-    {
-      name: "Project Trade",
-      fields: [{ key: "value", header: "Value" }],
-      data: [
-        { id: "1", value: "Electrical" },
-        { id: "2", value: "Plumbing" },
-      ],
-    },
-    {
-      name: "Project Status",
-      fields: [
-        { key: "value", header: "Value" },
-        { key: "color", header: "Color", isColor: true },
-      ],
-      data: [
-        { id: "1", value: "Open", color: "blue-500" },
-        { id: "2", value: "Closed", color: "gray-500" },
-      ],
-    },
-    {
-      name: "State",
-      fields: [{ key: "text", header: "Text" }],
-      data: [
-        { id: "1", text: "New York" },
-        { id: "2", text: "California" },
-      ],
-    },
-    {
-      name: "User",
-      fields: [
-        { key: "email", header: "Email" },
-        { key: "first_name", header: "First Name" },
-        { key: "last_name", header: "Last Name" },
-      ],
-      data: [
-        {
-          id: "1",
-          email: "alice@example.com",
-          first_name: "Alice",
-          last_name: "Wonder",
-        },
-        {
-          id: "2",
-          email: "bob@example.com",
-          first_name: "Bob",
-          last_name: "Builder",
-        },
-      ],
-    },
-    {
-      name: "Employee Account Manager - Client Relations",
-      fields: [
-        { key: "account_manager", header: "Account Manager" },
-        { key: "client", header: "Client" },
-      ],
-      data: [
-        { id: "1", account_manager: "bob@example.com", client: "Acme" },
-      ],
-    },
-    {
-      name: "Quote Status",
-      fields: [
-        { key: "value", header: "Value" },
-        { key: "color", header: "Color", isColor: true },
-      ],
-      data: [
-        { id: "1", value: "Pending", color: "amber-500" },
-        { id: "2", value: "Approved", color: "green-500" },
-      ],
-    },
-    {
-      name: "Invoice Status",
-      fields: [
-        { key: "value", header: "Value" },
-        { key: "color", header: "Color", isColor: true },
-      ],
-      data: [
-        { id: "1", value: "Unpaid", color: "red-500" },
-        { id: "2", value: "Paid", color: "emerald-500" },
-      ],
-    },
-  ];
-
   const userTypeOptions = [
     "Employee Admin",
     "Employee Account Manager",
     "Client Admin",
     "Client Technician",
   ];
+  const [configs, setConfigs] = useState<TableConfig[]>([]);
 
-  const configs = baseConfigs.map((cfg) => {
-    if (cfg.name === "User") {
-      return {
-        ...cfg,
-        fields: [
-          ...cfg.fields,
-          { key: "assign_to", header: "Assign Client Admin" },
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [priorities, types, trades, statuses, states, users, relations, qStatuses, iStatuses] = await Promise.all([
+          decryptPost(await encryptPost("/get-project-priorities", {})),
+          decryptPost(await encryptPost("/get-project-types", {})),
+          decryptPost(await encryptPost("/get-project-trades", {})),
+          decryptPost(await encryptPost("/get-project-statuses", {})),
+          decryptPost(await encryptPost("/get-states", {})),
+          decryptPost(await encryptPost("/get-users", {})),
+          decryptPost(await encryptPost("/get-account-manager-client-relations", {})),
+          decryptPost(await encryptPost("/get-quote-statuses", {})),
+          decryptPost(await encryptPost("/get-invoice-statuses", {})),
+        ]);
+        const cfgs: TableConfig[] = [
           {
-            key: "user_type",
-            header: "User Type",
-            isSelect: true,
-            options: userTypeOptions,
+            name: "Project Priority",
+            table: "project_priority",
+            fields: [
+              { key: "value", header: "Value" },
+              { key: "color", header: "Color", isColor: true },
+            ],
+            data: priorities?.project_priorities || [],
+            fetchUrl: "/get-project-priorities",
           },
-        ],
-        data: cfg.data.map((item) => ({
-          ...item,
-          user_type: userTypeOptions[0],
-          assign_to: "",
-        })),
-      };
-    }
-
-    return cfg;
-  });
+          {
+            name: "Project Type",
+            table: "project_type",
+            fields: [{ key: "value", header: "Value" }],
+            data: types?.project_types || [],
+            fetchUrl: "/get-project-types",
+          },
+          {
+            name: "Project Trade",
+            table: "project_trade",
+            fields: [{ key: "value", header: "Value" }],
+            data: trades?.project_trades || [],
+            fetchUrl: "/get-project-trades",
+          },
+          {
+            name: "Project Status",
+            table: "status",
+            category: "project",
+            fields: [
+              { key: "value", header: "Value" },
+              { key: "color", header: "Color", isColor: true },
+            ],
+            data: statuses?.project_statuses || [],
+            fetchUrl: "/get-project-statuses",
+          },
+          {
+            name: "State",
+            table: "state",
+            fields: [{ key: "name", header: "Text" }],
+            data: states?.states || [],
+            fetchUrl: "/get-states",
+          },
+          {
+            name: "User",
+            table: "user",
+            fields: [
+              { key: "email", header: "Email" },
+              { key: "first_name", header: "First Name" },
+              { key: "last_name", header: "Last Name" },
+              { key: "assign_to", header: "Assign Client Admin" },
+              {
+                key: "user_type",
+                header: "User Type",
+                isSelect: true,
+                options: userTypeOptions,
+              },
+            ],
+            data: (users?.users || []).map((u: any) => ({
+              ...u,
+              user_type: userTypeOptions[0],
+              assign_to: "",
+            })),
+            fetchUrl: "/get-users",
+          },
+          {
+            name: "Employee Account Manager - Client Relations",
+            table: "account_manager_client",
+            fields: [
+              { key: "account_manager", header: "Account Manager" },
+              { key: "client", header: "Client" },
+            ],
+            data: relations?.relations || [],
+            fetchUrl: "/get-account-manager-client-relations",
+          },
+          {
+            name: "Quote Status",
+            table: "status",
+            category: "quote",
+            fields: [
+              { key: "value", header: "Value" },
+              { key: "color", header: "Color", isColor: true },
+            ],
+            data: qStatuses?.quote_statuses || [],
+            fetchUrl: "/get-quote-statuses",
+          },
+          {
+            name: "Invoice Status",
+            table: "status",
+            category: "invoice",
+            fields: [
+              { key: "value", header: "Value" },
+              { key: "color", header: "Color", isColor: true },
+            ],
+            data: iStatuses?.invoice_statuses || [],
+            fetchUrl: "/get-invoice-statuses",
+          },
+        ];
+        setConfigs(cfgs);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    load();
+  }, []);
 
   return (
     <Wrapper title="Admin">
