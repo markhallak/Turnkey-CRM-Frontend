@@ -441,7 +441,7 @@ async def validateLoginToken(
 
     userEmail = row["user_email"]
     jti = str(uuid4())
-    exp_dt = datetime.now(timezone.utc) + timedelta(minutes=5)
+    exp_dt = datetime.now(timezone.utc) + timedelta(minutes=60)
     await conn.execute(
         "INSERT INTO jwt_token (jti, user_email, expires_at, revoked) VALUES ($1,$2,$3,FALSE)",
         jti,
@@ -468,7 +468,7 @@ async def validateLoginToken(
         samesite="none",
         domain="localhost",
         path="/",
-        max_age=60 * 60,
+        max_age=60 * 60 * 24,
     )
 
     return response
@@ -2698,7 +2698,7 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
         )
 
         jti = str(uuid4())
-        exp_dt = datetime.now(timezone.utc) + timedelta(hours=72)
+        exp_dt = datetime.now(timezone.utc) + timedelta(minutes=60)
         await conn.execute(
             "INSERT INTO jwt_token (jti, user_email, expires_at, revoked) VALUES ($1,$2,$3,FALSE)",
             jti,
@@ -2744,7 +2744,7 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
             samesite="none",
             domain="localhost",
             path="/",
-            max_age=60 * 60,
+            max_age=60 * 60 * 24,
         )
 
         request.app.state.casbin_watcher.update()
@@ -2856,7 +2856,7 @@ async def refreshSession(request: Request, conn: Connection = Depends(get_conn))
     redis = request.app.state.redis
     if not await redis.sismember("active_jtis", jti):
         raise HTTPException(status_code=401, detail="revoked")
-    exp_dt = datetime.now(timezone.utc) + timedelta(minutes=5)
+    exp_dt = datetime.now(timezone.utc) + timedelta(minutes=60)
     await conn.execute("UPDATE jwt_token SET expires_at=$1 WHERE jti=$2", exp_dt, jti)
     session_token = jwt.encode({"sub": email, "jti": jti, "exp": exp_dt}, SECRET_KEY, algorithm="HS256")
     resp = JSONResponse({"status": "ok"})
@@ -2868,7 +2868,7 @@ async def refreshSession(request: Request, conn: Connection = Depends(get_conn))
         samesite="none",
         domain="localhost",
         path="/",
-        max_age=60 * 60,
+        max_age=60 * 60 * 24,
     )
 
     return resp
