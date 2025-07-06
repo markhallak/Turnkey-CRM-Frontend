@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
+import { importSPKI, jwtVerify, errors } from "jose";
+import { encryptPost, decryptPost } from "@/lib/apiClient";
 import { useEffect, useState } from "react";
 import {
   Sidebar,
@@ -57,18 +59,41 @@ const items = [
 ];
 
 export default function AppSidebar() {
-  const [email, setEmail] = useState("");
+  const [types, setTypes] = useState<any[]>([]);
+  const [statuses, setStatuses] = useState<any[]>([]);
+  const [filters, setFilters] = useState<{ type: string[]; status: string[] }>({
+    type: [],
+    status: [],
+  });
+  const [email, setEmail] = useState<string>("");
+
   useEffect(() => {
-    const match = document.cookie
-      .split("; ")
-      .find((row) => row.startsWith("session="));
-    if (!match) return;
-    try {
-      const token = match.split("=")[1];
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      if (payload.sub) setEmail(payload.sub);
-    } catch {}
+    const loadAll = async () => {
+      try {
+        const r1 = await encryptPost("/get-client-types", {});
+        const t = await decryptPost<{ client_types: any[] }>(r1);
+        setTypes(t?.client_types || []);
+
+        const r2 = await encryptPost("/get-client-statuses", {});
+        const s = await decryptPost<{ client_statuses: any[] }>(r2);
+        setStatuses(s?.client_statuses || []);
+
+        setFilters({
+          type: (t?.client_types || []).map((v) => v.value),
+          status: (s?.client_statuses || []).map((v) => v.value),
+        });
+
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL }/auth/me`, {credentials: "include",});
+        const data = await res.json();
+        setEmail(data.email);
+      } catch (err) {
+        console.error("Error in loadAll:", err);
+      }
+    };
+
+    loadAll();
   }, []);
+
   return (
     <Sidebar>
       <SidebarHeader className="flex flex-row items-center px-4 py-[1.21rem] space-x-2">
@@ -109,7 +134,7 @@ export default function AppSidebar() {
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <SidebarMenuButton>
+                <SidebarMenuButton className="focus:!ring-0">
                   {email || "Current User"}
                   <ChevronUp className="ml-auto" />
                 </SidebarMenuButton>

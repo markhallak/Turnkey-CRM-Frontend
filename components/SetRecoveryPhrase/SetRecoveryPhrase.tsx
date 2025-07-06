@@ -13,9 +13,15 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function SetRecoveryPhrase({
   userEmail,
+  firstName,
+  lastName,
+  accountType,
   token,
 }: {
   userEmail: string;
+  firstName: string;
+  lastName: string;
+  accountType: string;
   token: string;
 }) {
   const [phrase, setPhrase] = useState("");
@@ -58,6 +64,9 @@ export default function SetRecoveryPhrase({
       await createClientKeys(seed);
       const resp = await encryptPost("/auth/set-recovery-phrase", {
         userEmail,
+        firstName,
+        lastName,
+        accountType,
         token,
         digest: hashB64,
         salt: Buffer.from(salt).toString("base64"),

@@ -24,7 +24,7 @@ export default function SetRecoveryPhrasePage() {
         const res = await encryptPost("/auth/validate-signup-token", { token });
         if (!res.ok) throw new Error("validate");
         const j = await decryptPost<{ userEmail: string }>(res);
-        setInfo({ userEmail: j.userEmail });
+        setInfo({ userEmail: j.userEmail, firstName: j.firstName, lastName: j.lastName, accountType: j.accountType });
       } catch (err) {
         console.error("verifyAndSetup failed:", err);
         toast({
@@ -45,6 +45,9 @@ export default function SetRecoveryPhrasePage() {
       <div className="w-full max-w-sm md:max-w-md">
         <SetRecoveryPhrase
           userEmail={info.userEmail}
+          firstName={info.firstName}
+          lastName={info.lastName}
+          accountType={info.accountType}
           token={token!}
         />
       </div>
