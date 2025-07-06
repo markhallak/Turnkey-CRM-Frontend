@@ -14,20 +14,23 @@ export default function LoginPage() {
 
   useEffect(() => {
     const verify = async () => {
-      if (!token) return
+      if (!token) {
+        toast({ description: "Missing token.", variant: "destructive" })
+        return
+      }
       setVerifying(true)
       try {
         const res = await encryptPost("/auth/validate-login-token", { token })
         if (!res.ok) throw new Error("validate")
         const data = await decryptPost<{ token: string }>(res)
-        let rsaPub = localStorage.getItem("rsaPublicKey")
-        if (!rsaPub) {
+        let serverRsaPub = localStorage.getItem("serverRsaPublicKey")
+        if (!serverRsaPub) {
           const r = await encryptPost("/auth/public-key", {})
           const j = await decryptPost<{ public_key: string }>(r)
-          rsaPub = j.public_key
-          localStorage.setItem("rsaPublicKey", rsaPub)
+          serverRsaPub = j.public_key
+          localStorage.setItem("serverRsaPublicKey", serverRsaPub)
         }
-        let key = await importSPKI(rsaPub!, "RS256")
+        let key = await importSPKI(serverRsaPub!, "RS256")
         let payload
         try {
           ;({ payload } = await jwtVerify(data.token, key))
@@ -35,9 +38,9 @@ export default function LoginPage() {
           if (err instanceof errors.JWSSignatureVerificationFailed) {
             const r = await encryptPost("/auth/public-key", {})
             const j = await decryptPost<{ public_key: string }>(r)
-            rsaPub = j.public_key
-            localStorage.setItem("rsaPublicKey", rsaPub)
-            key = await importSPKI(rsaPub, "RS256")
+            serverRsaPub = j.public_key
+            localStorage.setItem("serverRsaPublicKey", serverRsaPub)
+            key = await importSPKI(serverRsaPub, "RS256")
             ;({ payload } = await jwtVerify(data.token, key))
           } else {
             throw err

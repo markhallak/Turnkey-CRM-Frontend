@@ -24,7 +24,7 @@ async function fetchServerKey(): Promise<Uint8Array> {
   }
   const { public_key } = await res.json();
   if (typeof localStorage !== "undefined") {
-    localStorage.setItem("ed25519PublicKey", public_key);
+    localStorage.setItem("serverEd25519PublicKey", public_key);
   }
   return Buffer.from(public_key, "base64");
 }

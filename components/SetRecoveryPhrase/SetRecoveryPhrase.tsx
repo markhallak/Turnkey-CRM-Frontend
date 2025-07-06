@@ -64,14 +64,14 @@ export default function SetRecoveryPhrase({
         kdfParams: Buffer.from(JSON.stringify(params)).toString("base64"),
       });
       const data = await decryptPost<{ token: string }>(resp);
-      let rsaPub = localStorage.getItem("rsaPublicKey");
-      if (!rsaPub) {
+      let serverRsaPub = localStorage.getItem("serverRsaPublicKey");
+      if (!serverRsaPub) {
         const r = await encryptPost("/auth/public-key", {});
         const j = await decryptPost<{ public_key: string }>(r);
-        rsaPub = j.public_key;
-        localStorage.setItem("rsaPublicKey", rsaPub);
+        serverRsaPub = j.public_key;
+        localStorage.setItem("serverRsaPublicKey", serverRsaPub);
       }
-      let key = await importSPKI(rsaPub!, "RS256");
+      let key = await importSPKI(serverRsaPub!, "RS256");
       let payload;
       try {
         ({ payload } = await jwtVerify(data.token, key));
@@ -79,9 +79,9 @@ export default function SetRecoveryPhrase({
         if (err instanceof errors.JWSSignatureVerificationFailed) {
           const r = await encryptPost("/auth/public-key", {});
           const j = await decryptPost<{ public_key: string }>(r);
-          rsaPub = j.public_key;
-          localStorage.setItem("rsaPublicKey", rsaPub);
-          key = await importSPKI(rsaPub, "RS256");
+          serverRsaPub = j.public_key;
+          localStorage.setItem("serverRsaPublicKey", serverRsaPub);
+          key = await importSPKI(serverRsaPub, "RS256");
           ({ payload } = await jwtVerify(data.token, key));
         } else {
           throw err;
