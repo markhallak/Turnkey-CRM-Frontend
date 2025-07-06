@@ -79,7 +79,7 @@ def getEnforcer(request: Request) -> SyncedEnforcer:
     return request.app.state.enforcer
 
 
-BYPASS_SESSION = False
+BYPASS_SESSION = True
 
 
 async def authorize(request: Request, user: SimpleUser = Depends(getCurrentUser),
@@ -2746,7 +2746,7 @@ async def unblacklistUser(email: str = Body(..., embed=True), request: Request =
     return {"status": "ok"}
 
 
-@app.post("/connection-test")
+@app.get("/connection-test")
 async def connectionTest():
     return {"status": "ok"}
 
