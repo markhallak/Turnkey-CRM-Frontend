@@ -9,43 +9,53 @@ import {
   clearClientKeyStorage,
 } from "./clientKeys";
 
-async function fetchServerKey(): Promise<Uint8Array> {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/auth/ed25519-public-key`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({}),
-    credentials: "include",
-  });
+// helper that reads .text(), returns null if empty, otherwise parses JSON
+async function safeJson<T>(res: Response): Promise<T | null> {
+  const txt = await res.text();
+  if (!txt) return null;
+  return JSON.parse(txt) as T;
+}
 
+async function fetchServerKey(): Promise<Uint8Array> {
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_BACKEND_URL}/auth/ed25519-public-key`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+      credentials: "include",
+    }
+  );
   if (!res.ok) {
     throw new Error(`failed to fetch server public key: ${res.status}`);
   }
-  const { public_key } = await res.json();
-  if (!public_key) {
+  // safeJson will never blow up on empty
+  const payload = await safeJson<{ public_key: string }>(res);
+  // grab it into a local var
+  const publicKeyB64 = payload?.public_key;
+  if (!publicKeyB64) {
     throw new Error("no public_key in /auth/ed25519-public-key response");
   }
+  // cache it
   if (typeof localStorage !== "undefined") {
-    localStorage.setItem("serverEd25519PublicKey", public_key);
+    localStorage.setItem("serverEd25519PublicKey", publicKeyB64);
   }
-  return Buffer.from(public_key, "base64");
+ // return the decoded bytes
+  return Buffer.from(publicKeyB64, "base64");
 }
-
 
 async function encryptRequest(
   path: string,
   data: any,
   method: string = "POST"
 ): Promise<Response> {
-
   const hasKeys = await loadClientKeys();
 
+  // no client-side keys yet? just forward
   if (!hasKeys) {
     const isAuthRequest = path.startsWith("/auth/");
     if (!isAuthRequest && typeof document !== "undefined") {
-      document.cookie =
-        "session=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
+      document.cookie = "session=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
       window.location.href = "/auth/login";
       throw new Error("missing client key");
     }
@@ -57,6 +67,7 @@ async function encryptRequest(
     });
   }
 
+  // load our ED25519 and X25519 keys
   const clientPub = getEd25519PublicKey();
   const x25519Priv = getX25519PrivateKey();
   if (!clientPub || !x25519Priv) {
@@ -65,11 +76,12 @@ async function encryptRequest(
     throw new Error("missing client key data");
   }
 
+  // get server pubkey
   const serverPub = await fetchServerKey();
   const serverCurvePub = ed2curve.convertPublicKey(serverPub);
   const sharedSecret = nacl.scalarMult(x25519Priv, serverCurvePub);
 
-  // Encrypt payload with AES-GCM
+  // AES-GCM encrypt
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const aesKey = await crypto.subtle.importKey(
     "raw",
@@ -80,48 +92,55 @@ async function encryptRequest(
   );
   const plain = new TextEncoder().encode(JSON.stringify(data));
   const cipherBuf = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv: iv },
+    { name: "AES-GCM", iv },
     aesKey,
     plain
   );
 
-  // Build envelope
+  // envelope
   const body = {
     clientPubKey: Buffer.from(clientPub).toString("base64"),
     nonce: Buffer.from(iv).toString("base64"),
     ciphertext: Buffer.from(new Uint8Array(cipherBuf)).toString("base64"),
   };
 
-  // Send
-  const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}${path}`, {
+  // send it off
+  return fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}${path}`, {
     method,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
     credentials: "include",
   });
-  return res;
 }
 
-async function decryptResponse<T>(res: Response): Promise<T> {
+async function decryptResponse<T>(res: Response): Promise<T | null> {
+  // non-2xx
   if (!res.ok) {
     if (res.status === 403) {
+      // try to parse a JSON error
       try {
-        const j = await res.clone().json();
-        const detail = j.detail as string | undefined;
-        if (detail === "set-recovery-phrase" || detail === "onboarding") {
-          window.location.href = `/${detail}`;
+        const errJ = await safeJson<{ detail?: string }>(res);
+        if (errJ?.detail === "set-recovery-phrase" || errJ?.detail === "onboarding") {
+          window.location.href = `/${errJ.detail}`;
           throw new Error("redirect");
         }
-      } catch {}
+      } catch {
+        // ignore
+      }
     }
-    const text = await res.text().catch(() => `status ${res.status}`);
-    throw new Error(text);
-  }
-  const json = await res.json();
-  if (!json.ciphertext) {
-    return json as T;
+    // fallback to text if any
+    const txt = await res.text().catch(() => `status ${res.status}`);
+    throw new Error(txt);
   }
 
+  // now 2xx: maybe encrypted envelope, maybe plain JSON, maybe empty
+  const maybe = await safeJson<any>(res);
+  if (!maybe || !maybe.ciphertext) {
+    // either empty body or plain JSON
+    return maybe as T;
+  }
+
+  // decrypt envelope
   const ok = await loadClientKeys();
   if (!ok) {
     clearClientKeyStorage();
@@ -136,6 +155,7 @@ async function decryptResponse<T>(res: Response): Promise<T> {
     if (typeof window !== "undefined") window.location.href = "/auth/login";
     throw new Error("missing client key data");
   }
+
   const serverCurvePub = ed2curve.convertPublicKey(serverPub);
   const shared = nacl.scalarMult(xPriv, serverCurvePub);
   const aesKey = await crypto.subtle.importKey(
@@ -145,9 +165,10 @@ async function decryptResponse<T>(res: Response): Promise<T> {
     false,
     ["decrypt"]
   );
-  const nonce = Buffer.from(json.nonce, "base64");
-  const cipher = Buffer.from(json.ciphertext, "base64");
+  const nonce = Buffer.from(maybe.nonce, "base64");
+  const cipher = Buffer.from(maybe.ciphertext, "base64");
   const buf = await crypto.subtle.decrypt({ name: "AES-GCM", iv: nonce }, aesKey, cipher);
+
   return JSON.parse(new TextDecoder().decode(buf)) as T;
 }
 
@@ -155,8 +176,8 @@ export function encryptPost(path: string, data: any): Promise<Response> {
   return encryptRequest(path, data, "POST");
 }
 
-export function decryptPost<T>(res: Response): Promise<T> {
-  return decryptResponse(res);
+export function decryptPost<T>(res: Response): Promise<T | null> {
+  return decryptResponse<T>(res);
 }
 
 export { fetchServerKey, encryptRequest, decryptResponse };
