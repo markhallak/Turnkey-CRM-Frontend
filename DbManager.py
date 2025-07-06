@@ -550,6 +550,16 @@ CREATE TABLE IF NOT EXISTS client_references (
 );
 """
 
+# Mapping of account managers to clients
+ACCOUNT_MANAGER_CLIENT = """
+CREATE TABLE IF NOT EXISTS account_manager_client (
+  account_manager_email VARCHAR(255) NOT NULL REFERENCES "user"(email) ON DELETE CASCADE,
+  client_id UUID NOT NULL REFERENCES client(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (account_manager_email, client_id)
+);
+"""
+
 # ──────────────────────────────────────────────────────────────────────────────
 # 14: ALTERS (search_text columns)
 # ──────────────────────────────────────────────────────────────────────────────
@@ -910,6 +920,7 @@ async def create_tables():
             ("client", CLIENT),
             ("client_rate", CLIENT_RATE),
             ("user", USER),
+            ("account_manager_client", ACCOUNT_MANAGER_CLIENT),
             ("project_priority", PROJECT_PRIORITY),
             ("project_type", PROJECTS_TYPE),
             ("project_trade", PROJECTS_TRADE),

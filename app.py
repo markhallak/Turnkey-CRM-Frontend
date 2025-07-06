@@ -519,6 +519,49 @@ async def globalSearch(
     return payload
 
 
+@app.post("/get-account-manager-client-relations")
+async def getAccountManagerClientRelations(conn: Connection = Depends(get_conn)):
+    sql = """
+            SELECT amc.account_manager_email, amc.client_id, c.company_name
+              FROM account_manager_client amc
+              JOIN client c ON c.id = amc.client_id AND c.is_deleted = FALSE
+             ORDER BY amc.account_manager_email;
+        """
+    try:
+        rows = await conn.fetch(sql)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"relations": [dict(r) for r in rows]}
+
+
+@app.post("/create-account-manager-client-relation")
+async def createAccountManagerClientRelation(payload: dict = Body(), conn: Connection = Depends(get_conn)):
+    email = payload.get("account_manager_email")
+    clientId = payload.get("client_id")
+    if not email or not clientId:
+        raise HTTPException(status_code=400, detail="Invalid data")
+    sql = "INSERT INTO account_manager_client (account_manager_email, client_id) VALUES ($1,$2) ON CONFLICT DO NOTHING;"
+    try:
+        await conn.execute(sql, email, UUID(clientId))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "created"}
+
+
+@app.post("/delete-account-manager-client-relation")
+async def deleteAccountManagerClientRelation(payload: dict = Body(), conn: Connection = Depends(get_conn)):
+    email = payload.get("account_manager_email")
+    clientId = payload.get("client_id")
+    if not email or not clientId:
+        raise HTTPException(status_code=400, detail="Invalid data")
+    sql = "DELETE FROM account_manager_client WHERE account_manager_email=$1 AND client_id=$2;"
+    try:
+        await conn.execute(sql, email, UUID(clientId))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "deleted"}
+
+
 @app.post("/send-message")
 async def sendMessage(
         request: Request,
@@ -978,6 +1021,22 @@ async def getStates(
     if user:
         payload = await encryptForUser(payload, user.email, conn, request.app)
     return payload
+
+
+# List all users for admin page
+@app.post("/get-users")
+async def getUsers(conn: Connection = Depends(get_conn)):
+    sql = """
+            SELECT id, email, first_name, last_name
+              FROM "user"
+             WHERE is_deleted = FALSE
+             ORDER BY first_name;
+        """
+    try:
+        rows = await conn.fetch(sql)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"users": [dict(r) for r in rows]}
 
 
 @app.post("/create-new-project")
@@ -2104,6 +2163,38 @@ async def getBillingStatuses(conn: Connection = Depends(get_conn)):
     return {"billing_statuses": [dict(r) for r in rows]}
 
 
+@app.post("/get-invoice-statuses")
+async def getInvoiceStatuses(conn: Connection = Depends(get_conn)):
+    sql = """
+            SELECT id, value, color
+              FROM status
+             WHERE category = 'invoice'
+               AND is_deleted = FALSE
+             ORDER BY value;
+        """
+    try:
+        rows = await conn.fetch(sql)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"invoice_statuses": [dict(r) for r in rows]}
+
+
+@app.post("/get-quote-statuses")
+async def getQuoteStatuses(conn: Connection = Depends(get_conn)):
+    sql = """
+            SELECT id, value, color
+              FROM status
+             WHERE category = 'quote'
+               AND is_deleted = FALSE
+             ORDER BY value;
+        """
+    try:
+        rows = await conn.fetch(sql)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"quote_statuses": [dict(r) for r in rows]}
+
+
 @app.post("/get-passwords")
 async def getPasswords(
         clientId: str = Query(..., description="Client UUID"),
@@ -2663,6 +2754,69 @@ async def updateUser(request: Request, payload: dict = Body(), conn: Connection 
         request.app.state.casbin_watcher.update()
 
     return {"status": "updated"}
+
+
+TABLE_FIELDS = {
+    "project_priority": ["value", "color"],
+    "project_type": ["value"],
+    "project_trade": ["value"],
+    "state": ["name"],
+    "status": ["category", "value", "color"],
+}
+
+
+@app.post("/admin/create-record")
+async def adminCreateRecord(payload: dict = Body(), conn: Connection = Depends(get_conn)):
+    table = payload.get("table")
+    fields = TABLE_FIELDS.get(table)
+    if not table or not fields:
+        raise HTTPException(status_code=400, detail="Invalid table")
+    values = [payload.get(f) for f in fields]
+    placeholders = ",".join(f"${i+1}" for i in range(len(fields)))
+    sql = f"INSERT INTO {table} ({', '.join(fields)}) VALUES ({placeholders}) RETURNING id;"
+    try:
+        newId = await conn.fetchval(sql, *values)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"id": str(newId)}
+
+
+@app.put("/admin/update-record")
+async def adminUpdateRecord(payload: dict = Body(), conn: Connection = Depends(get_conn)):
+    table = payload.get("table")
+    recordId = payload.get("id")
+    fields = TABLE_FIELDS.get(table)
+    if not table or not fields or not recordId:
+        raise HTTPException(status_code=400, detail="Invalid data")
+    updates = []
+    params = []
+    for f in fields:
+        if f in payload:
+            params.append(payload[f])
+            updates.append(f"{f}=${len(params)}")
+    params.append(UUID(recordId))
+    if not updates:
+        return {"status": "no-op"}
+    sql = f"UPDATE {table} SET {', '.join(updates)}, updated_at=now() WHERE id=${len(params)};"
+    try:
+        await conn.execute(sql, *params)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "updated"}
+
+
+@app.post("/admin/delete-record")
+async def adminDeleteRecord(payload: dict = Body(), conn: Connection = Depends(get_conn)):
+    table = payload.get("table")
+    recordId = payload.get("id")
+    if not table or not recordId or table not in TABLE_FIELDS:
+        raise HTTPException(status_code=400, detail="Invalid data")
+    sql = f"UPDATE {table} SET is_deleted=TRUE, deleted_at=now() WHERE id=$1;"
+    try:
+        await conn.execute(sql, UUID(recordId))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "deleted"}
 
 
 @app.post("/auth/login")
