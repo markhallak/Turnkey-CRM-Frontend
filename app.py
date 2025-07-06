@@ -219,6 +219,36 @@ async def encryptForUser(data: dict, email: str, conn: Connection, app: FastAPI)
     return encryptForClient(data, row["public_key"], app)
 
 
+async def syncCasbinRelations(conn: Connection, enforcer: SyncedEnforcer, watcher=None):
+    await conn.execute(
+        "DELETE FROM casbin_rule WHERE ptype='g' AND v1 IN ('account_manager_client','client_admin_technician')"
+    )
+    amRows = await conn.fetch(
+        "SELECT account_manager_email, client_id FROM account_manager_client WHERE is_deleted=FALSE"
+    )
+    for r in amRows:
+        await conn.execute(
+            "INSERT INTO casbin_rule (ptype, v0, v1, v2, v3) VALUES ('g',$1,'account_manager_client',$2,'')",
+            r["account_manager_email"],
+            str(r["client_id"]),
+        )
+
+    caRows = await conn.fetch(
+        "SELECT client_admin_email, technician_email FROM client_admin_technician WHERE is_deleted=FALSE"
+    )
+    for r in caRows:
+        await conn.execute(
+            "INSERT INTO casbin_rule (ptype, v0, v1, v2, v3) VALUES ('g',$1,'client_admin_technician',$2,'')",
+            r["client_admin_email"],
+            r["technician_email"],
+        )
+
+    await enforcer.load_policy()
+    enforcer.build_role_links()
+    if watcher:
+        watcher.update()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async_url = ASYNCPG_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
@@ -273,6 +303,7 @@ async def lifespan(app: FastAPI):
         rows = await c.fetch("SELECT email FROM \"user\" WHERE is_blacklisted=TRUE")
         if rows:
             await redis.sadd("blacklisted_users", *[str(r["email"]) for r in rows])
+        await syncCasbinRelations(c, enforcer)
 
     async def listen_jwt():
         pub = redis.pubsub()
@@ -534,9 +565,11 @@ async def globalSearch(
 @app.post("/get-account-manager-client-relations")
 async def getAccountManagerClientRelations(conn: Connection = Depends(get_conn)):
     sql = """
-            SELECT amc.account_manager_email, amc.client_id, c.company_name
+            SELECT amc.account_manager_email AS account_manager,
+                   amc.client_id AS client,
+                   c.company_name
               FROM account_manager_client amc
-              JOIN client c ON c.id = amc.client_id 
+              JOIN client c ON c.id = amc.client_id
              ORDER BY amc.account_manager_email;
         """
     try:
@@ -547,7 +580,12 @@ async def getAccountManagerClientRelations(conn: Connection = Depends(get_conn))
 
 
 @app.post("/create-account-manager-client-relation")
-async def createAccountManagerClientRelation(payload: dict = Body(), conn: Connection = Depends(get_conn)):
+async def createAccountManagerClientRelation(
+    payload: dict = Body(),
+    conn: Connection = Depends(get_conn),
+    request: Request = None,
+    enforcer: SyncedEnforcer = Depends(getEnforcer),
+):
     email = payload.get("account_manager_email")
     clientId = payload.get("client_id")
     if not email or not clientId:
@@ -555,13 +593,19 @@ async def createAccountManagerClientRelation(payload: dict = Body(), conn: Conne
     sql = "INSERT INTO account_manager_client (account_manager_email, client_id) VALUES ($1,$2) ON CONFLICT DO NOTHING;"
     try:
         await conn.execute(sql, email, UUID(clientId))
+        await syncCasbinRelations(conn, enforcer, request.app.state.casbin_watcher)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     return {"status": "created"}
 
 
 @app.post("/delete-account-manager-client-relation")
-async def deleteAccountManagerClientRelation(payload: dict = Body(), conn: Connection = Depends(get_conn)):
+async def deleteAccountManagerClientRelation(
+    payload: dict = Body(),
+    conn: Connection = Depends(get_conn),
+    request: Request = None,
+    enforcer: SyncedEnforcer = Depends(getEnforcer),
+):
     email = payload.get("account_manager_email")
     clientId = payload.get("client_id")
     if not email or not clientId:
@@ -569,6 +613,118 @@ async def deleteAccountManagerClientRelation(payload: dict = Body(), conn: Conne
     sql = "DELETE FROM account_manager_client WHERE account_manager_email=$1 AND client_id=$2;"
     try:
         await conn.execute(sql, email, UUID(clientId))
+        await syncCasbinRelations(conn, enforcer, request.app.state.casbin_watcher)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "deleted"}
+
+
+@app.put("/update-account-manager-client-relation")
+async def updateAccountManagerClientRelation(
+    payload: dict = Body(),
+    conn: Connection = Depends(get_conn),
+    request: Request = None,
+    enforcer: SyncedEnforcer = Depends(getEnforcer),
+):
+    old_email = payload.get("old_account_manager_email")
+    old_client = payload.get("old_client_id")
+    new_email = payload.get("account_manager_email")
+    new_client = payload.get("client_id")
+    if not old_email or not old_client or not new_email or not new_client:
+        raise HTTPException(status_code=400, detail="Invalid data")
+    sql = (
+        "UPDATE account_manager_client SET account_manager_email=$1, client_id=$2"
+        " WHERE account_manager_email=$3 AND client_id=$4;"
+    )
+    try:
+        await conn.execute(sql, new_email, UUID(new_client), old_email, UUID(old_client))
+        await syncCasbinRelations(conn, enforcer, request.app.state.casbin_watcher)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "updated"}
+
+
+@app.post("/get-client-admin-technician-relations")
+async def getClientAdminTechnicianRelations(conn: Connection = Depends(get_conn)):
+    sql = """
+            SELECT client_admin_email AS client_admin,
+                   technician_email AS technician
+              FROM client_admin_technician
+             ORDER BY client_admin_email, technician_email;
+        """
+    try:
+        rows = await conn.fetch(sql)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"relations": [dict(r) for r in rows]}
+
+
+@app.post("/create-client-admin-technician-relation")
+async def createClientAdminTechnicianRelation(
+    payload: dict = Body(),
+    conn: Connection = Depends(get_conn),
+    request: Request = None,
+    enforcer: SyncedEnforcer = Depends(getEnforcer),
+):
+    admin_email = payload.get("client_admin_email")
+    tech_email = payload.get("technician_email")
+    if not admin_email or not tech_email:
+        raise HTTPException(status_code=400, detail="Invalid data")
+    sql = (
+        "INSERT INTO client_admin_technician (client_admin_email, technician_email)"
+        " VALUES ($1,$2) ON CONFLICT DO NOTHING;"
+    )
+    try:
+        await conn.execute(sql, admin_email, tech_email)
+        await syncCasbinRelations(conn, enforcer, request.app.state.casbin_watcher)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "created"}
+
+
+@app.put("/update-client-admin-technician-relation")
+async def updateClientAdminTechnicianRelation(
+    payload: dict = Body(),
+    conn: Connection = Depends(get_conn),
+    request: Request = None,
+    enforcer: SyncedEnforcer = Depends(getEnforcer),
+):
+    old_admin = payload.get("old_client_admin_email")
+    old_tech = payload.get("old_technician_email")
+    admin_email = payload.get("client_admin_email")
+    tech_email = payload.get("technician_email")
+    if not old_admin or not old_tech or not admin_email or not tech_email:
+        raise HTTPException(status_code=400, detail="Invalid data")
+    sql = (
+        "UPDATE client_admin_technician SET client_admin_email=$1, technician_email=$2"
+        " WHERE client_admin_email=$3 AND technician_email=$4;"
+    )
+    try:
+        await conn.execute(sql, admin_email, tech_email, old_admin, old_tech)
+        await syncCasbinRelations(conn, enforcer, request.app.state.casbin_watcher)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "updated"}
+
+
+@app.post("/delete-client-admin-technician-relation")
+async def deleteClientAdminTechnicianRelation(
+    payload: dict = Body(),
+    conn: Connection = Depends(get_conn),
+    request: Request = None,
+    enforcer: SyncedEnforcer = Depends(getEnforcer),
+):
+    admin_email = payload.get("client_admin_email")
+    tech_email = payload.get("technician_email")
+    if not admin_email or not tech_email:
+        raise HTTPException(status_code=400, detail="Invalid data")
+    sql = (
+        "DELETE FROM client_admin_technician"
+        " WHERE client_admin_email=$1 AND technician_email=$2;"
+    )
+    try:
+        await conn.execute(sql, admin_email, tech_email)
+        await syncCasbinRelations(conn, enforcer, request.app.state.casbin_watcher)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     return {"status": "deleted"}
@@ -963,8 +1119,8 @@ async def getAllClientAdmins(
               FROM "user" u
               JOIN casbin_rule r
                 ON r.ptype = 'g'
-               AND r.subject = u.email
-               AND r.domain = 'client_admin'
+               AND r.v0 = u.email
+               AND r.v1 = 'client_admin'
               JOIN client c ON c.id = u.client_id
                
              ORDER BY c.company_name;
@@ -989,8 +1145,8 @@ async def getAccountManagers(
               FROM "user" u
               JOIN casbin_rule r
                 ON r.ptype = 'g'
-               AND r.subject = u.email
-               AND r.domain = 'employee_account_manager'
+               AND r.v0 = u.email
+               AND r.v1 = 'employee_account_manager'
              WHERE  u.is_active = TRUE
              ORDER BY u.first_name;
         """
@@ -2732,11 +2888,11 @@ async def updateUser(request: Request, payload: dict = Body(), conn: Connection 
     if role:
         subj = email if email else await conn.fetchval('SELECT email FROM "user" WHERE id=$1', UUID(user_id))
         await conn.execute(
-            "DELETE FROM casbin_rule WHERE ptype='g' AND subject=$1",
+            "DELETE FROM casbin_rule WHERE ptype='g' AND v0=$1",
             subj,
         )
         await conn.execute(
-            "INSERT INTO casbin_rule (ptype, subject, domain, object, action) VALUES ('g',$1,$2,'*','')",
+            "INSERT INTO casbin_rule (ptype, v0, v1, v2, v3) VALUES ('g',$1,$2,'*','')",
             subj,
             role.replace(' ', '_').lower(),
         )
@@ -2746,6 +2902,21 @@ async def updateUser(request: Request, payload: dict = Body(), conn: Connection 
         request.app.state.casbin_watcher.update()
 
     return {"status": "updated"}
+
+
+@app.post("/delete-user")
+async def deleteUser(payload: dict = Body(), conn: Connection = Depends(get_conn)):
+    user_id = payload.get("userId")
+    if not user_id or not await isUUIDv4(user_id):
+        raise HTTPException(status_code=400, detail="Invalid userId")
+    try:
+        await conn.execute(
+            'UPDATE "user" SET is_deleted=TRUE, deleted_at=now() WHERE id=$1',
+            UUID(user_id),
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"status": "deleted"}
 
 
 TABLE_FIELDS = {
