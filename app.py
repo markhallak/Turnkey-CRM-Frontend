@@ -100,6 +100,16 @@ async def authorize(request: Request, user: SimpleUser = Depends(getCurrentUser)
         if not user:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="unauthenticated")
 
+        token = request.cookies.get("session")
+        if token:
+            try:
+                data = jwt.decode(token, SECRET_KEY, algorithms=["HS256"], options={"verify_exp": False})
+                jti = data.get("jti")
+                if jti and await request.app.state.redis.sismember("blacklisted_jtis", jti):
+                    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="revoked")
+            except Exception:
+                pass
+
         if not user.setup_done and path != "/set-recovery-phrase":
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="set-recovery-phrase")
 

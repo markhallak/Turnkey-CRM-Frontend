@@ -127,6 +127,46 @@ export async function getProfileDetails() {
   return { firstName: data.first_name, hexColor: data.hex_color };
 }
 
+function parseCsv(value: string): string[] {
+  const result: string[] = []
+  let current = ""
+  let inQuotes = false
+  for (let i = 0; i < value.length; i++) {
+    const char = value[i]
+    if (inQuotes) {
+      if (char === "\"") {
+        if (value[i + 1] === "\"") {
+          current += "\""
+          i++
+        } else {
+          inQuotes = false
+        }
+      } else {
+        current += char
+      }
+    } else {
+      if (char === "\"") {
+        inQuotes = true
+      } else if (char === ",") {
+        result.push(current)
+        current = ""
+      } else {
+        current += char
+      }
+    }
+  }
+  result.push(current)
+  return result
+}
+
+function toCsv(arr: string[]): string {
+  return arr
+    .map((s) =>
+      s.includes(",") || s.includes("\"") ? `"${s.replace(/\"/g, '""')}"` : s
+    )
+    .join(",")
+}
+
 interface IProps {
   title: string;
 }
@@ -178,18 +218,19 @@ const Header: FC<IProps> = ({ title }) => {
   const bgColor = avatarColor;
 
   useEffect(() => {
+    if (!searchOpen) return;
     const match = document.cookie
       .split("; ")
       .find((row) => row.startsWith("recent_searches="));
     if (match) {
       try {
         const value = decodeURIComponent(match.split("=")[1]);
-        setRecentSearches(JSON.parse(value));
+        setRecentSearches(parseCsv(value));
       } catch {
         setRecentSearches([]);
       }
     }
-  }, []);
+  }, [searchOpen]);
 
   useEffect(() => {
     setNotifs(contextNotifs);
@@ -198,7 +239,7 @@ const Header: FC<IProps> = ({ title }) => {
   const updateRecentSearches = (term: string) => {
     const next = [term, ...recentSearches.filter((t) => t !== term)].slice(0, 5);
     setRecentSearches(next);
-    document.cookie = `recent_searches=${encodeURIComponent(JSON.stringify(next))}; path=/; max-age=${60 * 60 * 24 * 365}`;
+    document.cookie = `recent_searches=${encodeURIComponent(toCsv(next))}; path=/; max-age=${60 * 60 * 24 * 365}`;
   };
 
   const handleSelectSearch = (term: string) => {
@@ -214,41 +255,21 @@ const Header: FC<IProps> = ({ title }) => {
       return;
     }
     setIsLoading(true);
-    const timer = setTimeout(() => {
-      setProjectResults([
-        {
-          poNumber: "PO123",
-          client: "Acme Co",
-          priority: "High",
-          type: "Type A",
-          status: "Open",
-          assignee: "John",
-        },
-        {
-          poNumber: "PO456",
-          client: "Beta LLC",
-          priority: "Low",
-          type: "Type B",
-          status: "Completed",
-          assignee: "Mary",
-        },
-      ]);
-      setClientResults([
-        {
-          clientName: "Acme Co",
-          status: "Active",
-          type: "Commercial",
-          totalRevenue: 123456,
-        },
-        {
-          clientName: "Beta LLC",
-          status: "Inactive",
-          type: "Residential",
-          totalRevenue: 78910,
-        },
-      ]);
-      setIsLoading(false);
-    }, 500);
+    const timer = setTimeout(async () => {
+      try {
+        const data = await fetchJson<{ projects: any[]; clients: any[] }>(
+          "/global-search",
+          { q: searchTerm }
+        );
+        setProjectResults(data.projects || []);
+        setClientResults(data.clients || []);
+        updateRecentSearches(searchTerm);
+      } catch (err) {
+        console.error("global search failed:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    }, 300);
     return () => clearTimeout(timer);
   }, [searchTerm]);
 

@@ -16,7 +16,10 @@ export default function SetRecoveryPhrasePage() {
 
   useEffect(() => {
     const verifyAndSetup = async () => {
-      if (!token) return;
+      if (!token) {
+        toast({ description: "Missing token.", variant: "destructive" });
+        return;
+      }
       try {
         const res = await encryptPost("/auth/validate-signup-token", { token });
         if (!res.ok) throw new Error("validate");
