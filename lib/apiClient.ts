@@ -23,6 +23,9 @@ async function fetchServerKey(): Promise<Uint8Array> {
     throw new Error(`failed to fetch server public key: ${res.status}`);
   }
   const { public_key } = await res.json();
+  if (!public_key) {
+    throw new Error("no public_key in /auth/ed25519-public-key response");
+  }
   if (typeof localStorage !== "undefined") {
     localStorage.setItem("serverEd25519PublicKey", public_key);
   }
