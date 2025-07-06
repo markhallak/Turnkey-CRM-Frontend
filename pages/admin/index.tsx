@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Wrapper from "@/components/Wrapper";
 import {
   ColumnDef,
@@ -446,140 +446,71 @@ function GenericTable({ config }: { config: TableConfig }) {
 }
 
 export default function AdminPage() {
-  const baseConfigs: TableConfig[] = [
-    {
-      name: "Project Priority",
-      fields: [
-        { key: "value", header: "Value" },
-        { key: "color", header: "Color", isColor: true },
-      ],
-      data: [
-        { id: "1", value: "High", color: "red-500" },
-        { id: "2", value: "Low", color: "green-500" },
-      ],
-    },
-    {
-      name: "Project Type",
-      fields: [{ key: "value", header: "Value" }],
-      data: [
-        { id: "1", value: "Residential" },
-        { id: "2", value: "Commercial" },
-      ],
-    },
-    {
-      name: "Project Trade",
-      fields: [{ key: "value", header: "Value" }],
-      data: [
-        { id: "1", value: "Electrical" },
-        { id: "2", value: "Plumbing" },
-      ],
-    },
-    {
-      name: "Project Status",
-      fields: [
-        { key: "value", header: "Value" },
-        { key: "color", header: "Color", isColor: true },
-      ],
-      data: [
-        { id: "1", value: "Open", color: "blue-500" },
-        { id: "2", value: "Closed", color: "gray-500" },
-      ],
-    },
-    {
-      name: "State",
-      fields: [{ key: "text", header: "Text" }],
-      data: [
-        { id: "1", text: "New York" },
-        { id: "2", text: "California" },
-      ],
-    },
-    {
-      name: "User",
-      fields: [
-        { key: "email", header: "Email" },
-        { key: "first_name", header: "First Name" },
-        { key: "last_name", header: "Last Name" },
-      ],
-      data: [
-        {
-          id: "1",
-          email: "alice@example.com",
-          first_name: "Alice",
-          last_name: "Wonder",
-        },
-        {
-          id: "2",
-          email: "bob@example.com",
-          first_name: "Bob",
-          last_name: "Builder",
-        },
-      ],
-    },
-    {
-      name: "Employee Account Manager - Client Relations",
-      fields: [
-        { key: "account_manager", header: "Account Manager" },
-        { key: "client", header: "Client" },
-      ],
-      data: [
-        { id: "1", account_manager: "bob@example.com", client: "Acme" },
-      ],
-    },
-    {
-      name: "Quote Status",
-      fields: [
-        { key: "value", header: "Value" },
-        { key: "color", header: "Color", isColor: true },
-      ],
-      data: [
-        { id: "1", value: "Pending", color: "amber-500" },
-        { id: "2", value: "Approved", color: "green-500" },
-      ],
-    },
-    {
-      name: "Invoice Status",
-      fields: [
-        { key: "value", header: "Value" },
-        { key: "color", header: "Color", isColor: true },
-      ],
-      data: [
-        { id: "1", value: "Unpaid", color: "red-500" },
-        { id: "2", value: "Paid", color: "emerald-500" },
-      ],
-    },
-  ];
+  const [configs, setConfigs] = useState<TableConfig[]>([]);
 
-  const userTypeOptions = [
-    "Employee Admin",
-    "Employee Account Manager",
-    "Client Admin",
-    "Client Technician",
-  ];
+  useEffect(() => {
+    const load = async () => {
+      try {
+        let r = await encryptPost("/get-project-priorities", {});
+        const priorities = await decryptPost<{ project_priorities: any[] }>(r);
+        r = await encryptPost("/get-project-types", {});
+        const types = await decryptPost<{ project_types: any[] }>(r);
+        r = await encryptPost("/get-project-trades", {});
+        const trades = await decryptPost<{ project_trades: any[] }>(r);
+        r = await encryptPost("/get-project-statuses", {});
+        const statuses = await decryptPost<{ project_statuses: any[] }>(r);
+        r = await encryptPost("/get-states", {});
+        const states = await decryptPost<{ states: any[] }>(r);
+        r = await encryptPost("/get-billing-statuses", {});
+        const invoices = await decryptPost<{ billing_statuses: any[] }>(r);
 
-  const configs = baseConfigs.map((cfg) => {
-    if (cfg.name === "User") {
-      return {
-        ...cfg,
-        fields: [
-          ...cfg.fields,
-          { key: "assign_to", header: "Assign Client Admin" },
+        setConfigs([
           {
-            key: "user_type",
-            header: "User Type",
-            isSelect: true,
-            options: userTypeOptions,
+            name: "Project Priority",
+            fields: [
+              { key: "value", header: "Value" },
+              { key: "color", header: "Color", isColor: true },
+            ],
+            data: priorities?.project_priorities || [],
           },
-        ],
-        data: cfg.data.map((item) => ({
-          ...item,
-          user_type: userTypeOptions[0],
-          assign_to: "",
-        })),
-      };
-    }
-
-    return cfg;
-  });
+          {
+            name: "Project Type",
+            fields: [{ key: "value", header: "Value" }],
+            data: types?.project_types || [],
+          },
+          {
+            name: "Project Trade",
+            fields: [{ key: "value", header: "Value" }],
+            data: trades?.project_trades || [],
+          },
+          {
+            name: "Project Status",
+            fields: [
+              { key: "value", header: "Value" },
+              { key: "color", header: "Color", isColor: true },
+            ],
+            data: statuses?.project_statuses || [],
+          },
+          {
+            name: "State",
+            fields: [{ key: "name", header: "Name" }],
+            data: states?.states || [],
+          },
+          {
+            name: "Invoice Status",
+            fields: [
+              { key: "value", header: "Value" },
+              { key: "color", header: "Color", isColor: true },
+            ],
+            data: invoices?.billing_statuses || [],
+          },
+        ]);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    load();
+  }, []);
 
   return (
     <Wrapper title="Admin">
