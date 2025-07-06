@@ -22,6 +22,7 @@ import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form } from "@/components/ui/form";
+import { encryptPost, decryptPost } from "@/lib/apiClient";
 
 // Validation schema
 const formSchema = z.object({
@@ -63,8 +64,30 @@ const NewProject = () => {
     formState: { errors },
   } = form;
 
-  function onSubmit(values: FormValues) {
-    console.log(values);
+  async function onSubmit(values: FormValues) {
+    try {
+      await decryptPost(
+        await encryptPost("/create-new-project", {
+          client: values.client,
+          businessName: values.businessName,
+          dateReceived: values.dateReceived,
+          priority: values.priority,
+          dueDate: values.dueDate,
+          trade: values.trade,
+          nte: values.nte,
+          assignee: values.assignee,
+          address1: values.address1,
+          address2: values.address2,
+          city: values.city,
+          state: values.state,
+          zipCode: values.zipCode,
+          scopeOfWork: values.scopeOfWork,
+          specialNotes: values.specialNotes,
+        })
+      );
+    } catch (err) {
+      console.error(err);
+    }
   }
 
   return (

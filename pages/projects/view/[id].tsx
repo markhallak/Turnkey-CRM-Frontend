@@ -14,7 +14,6 @@ import Wrapper from "@/components/Wrapper";
 import {
   projectDocumentData as PD,
   projectQuoteData as PQ,
-  projectsData,
 } from "@/lib/constants";
 import {
   CalendarIcon,
@@ -39,6 +38,7 @@ import {
 import { GoKebabHorizontal } from "react-icons/go";
 import ChatUI from "@/components/Projects/ChatUI";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { encryptPost, decryptPost } from "@/lib/apiClient";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,8 +60,11 @@ const ProjectView = () => {
   const [projectDocumentData, setProjectDocumentData] = useState(PD);
   const [messageType, setMessageType] = useState("all");
 
-  type ArrayElement<T> = T extends (infer U)[] ? U : never;
-  type Project = ArrayElement<typeof projectsData>;
+  type Project = {
+    poNumber: string;
+    client: string;
+    status: string;
+  } & Record<string, any>;
 
   const [project, setProject] = useState<Project>();
   const router = useRouter();
@@ -74,10 +77,25 @@ const ProjectView = () => {
     setProject((p) => (p ? { ...p, status: s } : p));
 
   useEffect(() => {
-    if (id && typeof id === "string" && !project) {
-      const p = projectsData.find((p) => p.poNumber === id);
-      setProject(p);
-    }
+    const load = async () => {
+      if (id && typeof id === "string" && !project) {
+        try {
+          const r = await encryptPost(`/fetch-project?project_id=${id}`, {});
+          const j = await decryptPost<{ project: any }>(r);
+          if (j) {
+            setProject({
+              poNumber: j.project.po_number,
+              client: j.project.client_company_name,
+              status: j.project.status_value,
+              ...j.project,
+            });
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    };
+    load();
   }, [id, project]);
 
   return (
@@ -553,7 +571,7 @@ const ProjectView = () => {
           </div>
           <div className="w-full lg:w-[40%] lg:border-l border-t lg:border-t-0 flex-none h-full overflow-auto">
             <div className="flex flex-col h-full min-h-0 overflow-hidden">
-              <ChatUI clientname={project?.client || ""} />
+              <ChatUI projectId={id as string} clientname={project?.client || ""} />
             </div>
           </div>
         </div>

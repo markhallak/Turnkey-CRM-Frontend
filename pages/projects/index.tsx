@@ -1,7 +1,7 @@
 "use client";
 import Wrapper from "@/components/Wrapper";
 import Link from "next/link";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -23,23 +23,66 @@ import {
   Plus,
   Search,
 } from "lucide-react";
-import Table from "@/components/Projects/Table";
+import Table, { DocumentData } from "@/components/Projects/Table";
+import { encryptPost, decryptPost } from "@/lib/apiClient";
 import { Button } from "@/components/ui/button";
 import { TbTableExport } from "react-icons/tb";
 import * as XLSX from "xlsx";
 
 const Projects = () => {
   const [searchTerm, setSearchTerm] = useState("");
-  const [filters, setFilters] = useState({
-    priority: ["p1", "p2"],
-    type: ["residential", "commercial"],
-    status: ["open", "closed"],
-  });
+  const [filters, setFilters] = useState({ priority: [] as string[], type: [] as string[], status: [] as string[] });
+  const [projects, setProjects] = useState<DocumentData[]>([]);
+  const [cursor, setCursor] = useState<{ ts?: string; id?: string }>({});
+  const [statuses, setStatuses] = useState<any[]>([]);
+  const [priorities, setPriorities] = useState<any[]>([]);
+  const [types, setTypes] = useState<any[]>([]);
+  const [trades, setTrades] = useState<any[]>([]);
   const [tableInstance, setTableInstance] = useState<any>(null);
   const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
   const labelMap: Record<string, string> = {
     poNumber: "PO Number",
   };
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        let r = await encryptPost("/get-project-statuses", {});
+        const s = await decryptPost<{ project_statuses: any[] }>(r);
+        setStatuses(s?.project_statuses || []);
+        r = await encryptPost("/get-project-priorities", {});
+        const p = await decryptPost<{ project_priorities: any[] }>(r);
+        setPriorities(p?.project_priorities || []);
+        r = await encryptPost("/get-project-types", {});
+        const t = await decryptPost<{ project_types: any[] }>(r);
+        setTypes(t?.project_types || []);
+        r = await encryptPost("/get-project-trades", {});
+        const tr = await decryptPost<{ project_trades: any[] }>(r);
+        setTrades(tr?.project_trades || []);
+        const pr = await encryptPost("/get-projects", { size: 20 });
+        const pj = await decryptPost<any>(pr);
+        if (pj) {
+          setProjects(
+            pj.projects.map((r: any) => ({
+              poNumber: r.po_number,
+              client: r.company_name,
+              priority: r.priority_value,
+              type: r.type_value,
+              address: r.address,
+              trade: r.trade_value,
+              status: r.status_value,
+              nte: r.nte,
+              assignee: r.assignee_name,
+            }))
+          );
+          setCursor({ ts: pj.last_seen_created_at || undefined, id: pj.last_seen_id || undefined });
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    load();
+  }, []);
 
   return (
     <Wrapper title="Projects">
@@ -83,30 +126,21 @@ const Projects = () => {
                         </DropdownMenuSubTrigger>
                         <DropdownMenuPortal>
                           <DropdownMenuSubContent>
-                            <DropdownMenuCheckboxItem
-                              checked={filters.priority.includes("p1")}
-                              textValue="p1"
-                              onCheckedChange={(isChecked) => {
-                                const priority = [...filters.priority];
-                                if (isChecked) priority.push("p1");
-                                else priority.splice(priority.indexOf("p1"), 1);
-                                setFilters({ ...filters, priority });
-                              }}
-                            >
-                              P1 - Emergency
-                            </DropdownMenuCheckboxItem>
-                            <DropdownMenuCheckboxItem
-                              checked={filters.priority.includes("p2")}
-                              textValue="p2"
-                              onCheckedChange={(isChecked) => {
-                                const priority = [...filters.priority];
-                                if (isChecked) priority.push("p2");
-                                else priority.splice(priority.indexOf("p2"), 1);
-                                setFilters({ ...filters, priority });
-                              }}
-                            >
-                              P2 - Same Day
-                            </DropdownMenuCheckboxItem>
+                            {priorities.map((p) => (
+                              <DropdownMenuCheckboxItem
+                                key={p.id}
+                                checked={filters.priority.includes(String(p.id))}
+                                textValue={String(p.id)}
+                                onCheckedChange={(isChecked) => {
+                                  const priority = [...filters.priority];
+                                  if (isChecked) priority.push(String(p.id));
+                                  else priority.splice(priority.indexOf(String(p.id)), 1);
+                                  setFilters({ ...filters, priority });
+                                }}
+                              >
+                                {p.value}
+                              </DropdownMenuCheckboxItem>
+                            ))}
                           </DropdownMenuSubContent>
                         </DropdownMenuPortal>
                       </DropdownMenuSub>
@@ -192,7 +226,7 @@ const Projects = () => {
           </div>
         </div>
 
-        <Table onTableReady={setTableInstance} />
+        <Table data={projects} onTableReady={setTableInstance} />
       </div>
     </Wrapper>
   );

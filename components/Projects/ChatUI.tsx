@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Paperclip, Send, User } from "lucide-react";
 import MessageBubble from "@/components/Projects/MessageBubble";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { encryptPost, decryptPost } from "@/lib/apiClient";
 
 type Attachment = {
   name: string;
@@ -297,17 +298,43 @@ const initialMessages: Message[] = [
   },
 ];
 
-export default function ChatUI({ clientname }: { clientname: string }) {
+export default function ChatUI({ projectId, clientname }: { projectId: string; clientname: string }) {
   const [allMessages, setAllMessages] = useState<Message[]>(initialMessages);
   const [visibleCount, setVisibleCount] = useState(20);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [cursor, setCursor] = useState<{ ts?: string; id?: string }>({});
   const [messageType, setMessageType] = useState<"employee" | "all">(
     "employee"
   );
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const r = await encryptPost("/get-messages", { projectId, size: 20 });
+        const j = await decryptPost<any>(r);
+        if (j) {
+          setAllMessages(
+            j.messages
+              .map((m: any) => ({
+                text: m.content,
+                sender: m.sender_type === "client" ? "client" : "employee",
+                timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true }),
+                date: new Date(m.created_at),
+              }))
+          );
+          setCursor({ ts: j.last_seen_created_at || undefined, id: j.last_seen_id || undefined });
+          setVisibleCount(20);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    load();
+  }, [projectId]);
 
   const filteredMessages =
     messageType === "employee"
@@ -385,20 +412,11 @@ export default function ChatUI({ clientname }: { clientname: string }) {
     return () => vp.removeEventListener("scroll", onScroll);
   }, [visibleCount, filteredMessages.length, isLoading, messageType]);
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!input.trim()) return;
     const now = new Date();
-    const ts = now.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
-    const userMsg: Message = {
-      text: input,
-      sender: "employee",
-      timestamp: ts,
-      date: now,
-    };
+    const ts = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true });
+    const userMsg: Message = { text: input, sender: "employee", timestamp: ts, date: now };
     setAllMessages((prev) => [...prev, userMsg]);
     setVisibleCount((c) => c + 1);
     setInput("");
@@ -406,22 +424,11 @@ export default function ChatUI({ clientname }: { clientname: string }) {
       textareaRef.current.style.height = "auto";
       textareaRef.current.rows = 1;
     }
-    setTimeout(() => {
-      const t = new Date();
-      const ts2 = t.toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-      });
-      const reply: Message = {
-        text: "That's interesting!",
-        sender: "client",
-        timestamp: ts2,
-        date: t,
-      };
-      setAllMessages((prev) => [...prev, reply]);
-      setVisibleCount((c) => c + 1);
-    }, 1000);
+    try {
+      await decryptPost(await encryptPost("/send-message", { projectId, content: input }));
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const groups: (Message | { separator: string })[] = [];

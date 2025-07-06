@@ -519,6 +519,33 @@ async def globalSearch(
     return payload
 
 
+@app.post("/send-message")
+async def sendMessage(
+        request: Request,
+        data: dict = Depends(decryptPayload()),
+        conn: Connection = Depends(get_conn),
+        user: SimpleUser = Depends(getCurrentUser)
+):
+    project_id = data.get("projectId")
+    content = data.get("content")
+    if not project_id or not content:
+        raise HTTPException(status_code=400, detail="invalid params")
+    try:
+        msg_id = await conn.fetchval(
+            "INSERT INTO message (project_id, sender_id, content) VALUES ($1,$2,$3) RETURNING id",
+            UUID(project_id), user.id, content
+        )
+        created_at = await conn.fetchval(
+            "SELECT created_at FROM message WHERE id=$1", msg_id
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    payload = {"messageId": str(msg_id), "created_at": created_at.isoformat()}
+    if user:
+        payload = await encryptForUser(payload, user.email, conn, request.app)
+    return payload
+
+
 @app.post("/get-notifications")
 async def getNotifications(
         request: Request,
@@ -612,7 +639,12 @@ async def getProfileDetails(
 
 
 @app.post("/project-assessments/{project_id}")
-async def getProjectAssessments(project_id: str, db_pool: Pool = Depends(get_db_pool)):
+async def getProjectAssessments(
+        request: Request,
+        project_id: str,
+        db_pool: Pool = Depends(get_db_pool),
+        user: SimpleUser = Depends(getCurrentUser)
+):
     if not await isUUIDv4(project_id):
         raise HTTPException(status_code=400, detail="Invalid project id")
 
@@ -632,7 +664,10 @@ async def getProjectAssessments(project_id: str, db_pool: Pool = Depends(get_db_
         rec = await conn.fetchrow(sql, UUID(project_id))
     if not rec:
         raise HTTPException(status_code=404, detail="Not found")
-    return dict(rec)
+    payload = dict(rec)
+    if user:
+        payload = await encryptForUser(payload, user.email, conn, request.app)
+    return payload
 
 
 ################################################################################
@@ -710,17 +745,16 @@ async def getCalendarEvents(
 
 @app.post("/get-projects")
 async def getProjects(
-        size: int = Query(..., gt=0, description="Number of projects per page"),
-        last_seen_created_at: Optional[str] = Query(
-            None,
-            description="ISO-8601 UTC timestamp cursor (e.g. 2025-05-24T12:00:00Z)"
-        ),
-        last_seen_id: Optional[UUID] = Query(
-            None,
-            description="UUID cursor to break ties if multiple rows share the same timestamp"
-        ),
-        conn: Connection = Depends(get_conn)
+        request: Request,
+        data: dict = Depends(decryptPayload()),
+        conn: Connection = Depends(get_conn),
+        user: SimpleUser = Depends(getCurrentUser)
 ):
+    size = data.get("size")
+    last_seen_created_at = data.get("last_seen_created_at")
+    last_seen_id = data.get("last_seen_id")
+    if not size:
+        raise HTTPException(status_code=400, detail="size required")
     # 1) parse the timestamp (or default to now)
     if last_seen_created_at:
         try:
@@ -771,17 +805,23 @@ async def getProjects(
         next_ts = None
         next_id = None
 
-    return {
+    payload = {
         "projects": [dict(r) for r in rows],
         "total_count": total,
         "page_size": size,
         "last_seen_created_at": next_ts,
         "last_seen_id": next_id,
     }
+    if user:
+        payload = await encryptForUser(payload, user.email, conn, request.app)
+    return payload
 
 
 @app.post("/get-project-statuses")
-async def getProjectStatuses(conn: Connection = Depends(get_conn)):
+async def getProjectStatuses(
+        request: Request,
+        conn: Connection = Depends(get_conn),
+        user: SimpleUser = Depends(getCurrentUser)):
     sql = """
             SELECT id, value, color
             FROM status
@@ -794,11 +834,17 @@ async def getProjectStatuses(conn: Connection = Depends(get_conn)):
         rows = await conn.fetch(sql)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    return {"project_statuses": [dict(r) for r in rows]}
+    payload = {"project_statuses": [dict(r) for r in rows]}
+    if user:
+        payload = await encryptForUser(payload, user.email, conn, request.app)
+    return payload
 
 
 @app.post("/get-project-types")
-async def getProjectTypes(conn: Connection = Depends(get_conn)):
+async def getProjectTypes(
+        request: Request,
+        conn: Connection = Depends(get_conn),
+        user: SimpleUser = Depends(getCurrentUser)):
     sql = """
             SELECT id, value
             FROM project_type
@@ -810,11 +856,17 @@ async def getProjectTypes(conn: Connection = Depends(get_conn)):
         rows = await conn.fetch(sql)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    return {"project_types": [dict(r) for r in rows]}
+    payload = {"project_types": [dict(r) for r in rows]}
+    if user:
+        payload = await encryptForUser(payload, user.email, conn, request.app)
+    return payload
 
 
 @app.post("/get-project-trades")
-async def getProjectTrades(conn: Connection = Depends(get_conn)):
+async def getProjectTrades(
+        request: Request,
+        conn: Connection = Depends(get_conn),
+        user: SimpleUser = Depends(getCurrentUser)):
     sql = """
             SELECT id, value
             FROM project_trade
@@ -826,11 +878,17 @@ async def getProjectTrades(conn: Connection = Depends(get_conn)):
         rows = await conn.fetch(sql)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    return {"project_trades": [dict(r) for r in rows]}
+    payload = {"project_trades": [dict(r) for r in rows]}
+    if user:
+        payload = await encryptForUser(payload, user.email, conn, request.app)
+    return payload
 
 
 @app.post("/get-project-priorities")
-async def getProjectPriorities(conn: Connection = Depends(get_conn)):
+async def getProjectPriorities(
+        request: Request,
+        conn: Connection = Depends(get_conn),
+        user: SimpleUser = Depends(getCurrentUser)):
     sql = """
             SELECT id, value, color
             FROM project_priority
@@ -842,13 +900,18 @@ async def getProjectPriorities(conn: Connection = Depends(get_conn)):
         rows = await conn.fetch(sql)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    return {"project_priorities": [dict(r) for r in rows]}
+    payload = {"project_priorities": [dict(r) for r in rows]}
+    if user:
+        payload = await encryptForUser(payload, user.email, conn, request.app)
+    return payload
 
 
 @app.post("/create-new-project")
 async def createNewProject(
-        payload: dict = Body(...),
-        conn: Connection = Depends(get_conn)
+        request: Request,
+        payload: dict = Depends(decryptPayload()),
+        conn: Connection = Depends(get_conn),
+        user: SimpleUser = Depends(getCurrentUser)
 ):
     clientId = payload.get("client")
     businessName = payload.get("businessName")
@@ -921,7 +984,10 @@ async def createNewProject(
             assigneeId,
         )
 
-    return {"projectId": projectId}
+    payloadRes = {"projectId": projectId}
+    if user:
+        payloadRes = await encryptForUser(payloadRes, user.email, conn, request.app)
+    return payloadRes
 
 
 ################################################################################
@@ -929,8 +995,11 @@ async def createNewProject(
 ################################################################################
 @app.post("/fetch-project")
 async def fetchProject(
+        request: Request,
         project_id: str = Query(..., description="Project UUID"),
-        conn: Connection = Depends(get_conn)
+        conn: Connection = Depends(get_conn),
+        user: SimpleUser = Depends(getCurrentUser),
+        enforcer: SyncedEnforcer = Depends(getEnforcer)
 ):
     sql = """
         SELECT
@@ -1032,23 +1101,30 @@ async def fetchProject(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    return {"project": dict(row)}
+    project = dict(row)
+    roles = enforcer.get_roles_for_user_in_domain(user.email, "*") if user else []
+    if "client_technician" in roles:
+        project.pop("nte", None)
+
+    payload = {"project": project}
+    if user:
+        payload = await encryptForUser(payload, user.email, conn, request.app)
+    return payload
 
 
 @app.post("/get-messages")
 async def getMessages(
-        projectId: str = Query(..., description="Project UUID"),
-        size: int = Query(..., gt=0, description="Number of messages to return"),
-        last_seen_created_at: Optional[str] = Query(
-            None,
-            description="ISO-8601 UTC timestamp cursor (e.g. 2025-05-24T12:00:00Z)"
-        ),
-        last_seen_id: Optional[UUID] = Query(
-            None,
-            description="UUID cursor to break ties if multiple rows share the same timestamp"
-        ),
-        conn: Connection = Depends(get_conn)
+        request: Request,
+        data: dict = Depends(decryptPayload()),
+        conn: Connection = Depends(get_conn),
+        user: SimpleUser = Depends(getCurrentUser)
 ):
+    projectId = data.get("projectId")
+    size = data.get("size")
+    last_seen_created_at = data.get("last_seen_created_at")
+    last_seen_id = data.get("last_seen_id")
+    if not projectId or not size:
+        raise HTTPException(status_code=400, detail="invalid params")
     if last_seen_created_at:
         try:
             dt = datetime.fromisoformat(last_seen_created_at)
@@ -1109,29 +1185,31 @@ async def getMessages(
         next_ts = None
         next_id = None
 
-    return {
+    payload = {
         "messages": [dict(r) for r in rows],
         "total_count": total,
         "page_size": size,
         "last_seen_created_at": next_ts,
         "last_seen_id": next_id,
     }
+    if user:
+        payload = await encryptForUser(payload, user.email, conn, request.app)
+    return payload
 
 
 @app.post("/fetch-project-quotes")
 async def fetchProjectQuotesEndpoint(
-        project_id: str = Query(..., description="Project UUID"),
-        size: int = Query(..., gt=0, description="Number of quotes to return"),
-        last_seen_created_at: Optional[str] = Query(
-            None,
-            description="ISO-8601 UTC timestamp cursor (e.g. 2025-05-24T12:00:00Z)"
-        ),
-        last_seen_id: Optional[UUID] = Query(
-            None,
-            description="UUID cursor to break ties if multiple rows share the same timestamp"
-        ),
-        conn: Connection = Depends(get_conn)
+        request: Request,
+        data: dict = Depends(decryptPayload()),
+        conn: Connection = Depends(get_conn),
+        user: SimpleUser = Depends(getCurrentUser)
 ):
+    project_id = data.get("project_id")
+    size = data.get("size")
+    last_seen_created_at = data.get("last_seen_created_at")
+    last_seen_id = data.get("last_seen_id")
+    if not project_id or not size:
+        raise HTTPException(status_code=400, detail="invalid params")
     if last_seen_created_at:
         try:
             dt = datetime.fromisoformat(last_seen_created_at)
@@ -1182,7 +1260,7 @@ async def fetchProjectQuotesEndpoint(
         next_ts = None
         next_id = None
 
-    return {
+    payload = {
         "quotes": [
             {
                 "quote_id": r["quote_id"],
@@ -1198,25 +1276,24 @@ async def fetchProjectQuotesEndpoint(
         "last_seen_created_at": next_ts,
         "last_seen_id": next_id,
     }
+    if user:
+        payload = await encryptForUser(payload, user.email, conn, request.app)
+    return payload
 
 
 @app.post("/fetch-project-documents")
 async def fetchProjectDocumentsEndpoint(
         request: Request,
         data: dict = Depends(decryptPayload()),
-        project_id: str = Query(..., description="Project UUID"),
-        size: int = Query(..., gt=0, description="Number of documents to return"),
-        last_seen_created_at: Optional[str] = Query(
-            None,
-            description="ISO-8601 UTC timestamp cursor (e.g. 2025-05-24T12:00:00Z)"
-        ),
-        last_seen_id: Optional[UUID] = Query(
-            None,
-            description="UUID cursor to break ties if multiple rows share the same timestamp"
-        ),
         conn: Connection = Depends(get_conn),
         user: SimpleUser = Depends(getCurrentUser)
 ):
+    project_id = data.get("project_id")
+    size = data.get("size")
+    last_seen_created_at = data.get("last_seen_created_at")
+    last_seen_id = data.get("last_seen_id")
+    if not project_id or not size:
+        raise HTTPException(status_code=400, detail="invalid params")
     if last_seen_created_at:
         try:
             dt = datetime.fromisoformat(last_seen_created_at)
