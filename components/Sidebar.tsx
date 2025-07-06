@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
+import { useEffect, useState } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -56,6 +57,18 @@ const items = [
 ];
 
 export default function AppSidebar() {
+  const [email, setEmail] = useState("");
+  useEffect(() => {
+    const match = document.cookie
+      .split("; ")
+      .find((row) => row.startsWith("session="));
+    if (!match) return;
+    try {
+      const token = match.split("=")[1];
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      if (payload.sub) setEmail(payload.sub);
+    } catch {}
+  }, []);
   return (
     <Sidebar>
       <SidebarHeader className="flex flex-row items-center px-4 py-[1.21rem] space-x-2">
@@ -97,7 +110,7 @@ export default function AppSidebar() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton>
-                  Current Username
+                  {email || "Current User"}
                   <ChevronUp className="ml-auto" />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>

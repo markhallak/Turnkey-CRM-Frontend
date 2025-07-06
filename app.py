@@ -906,6 +906,80 @@ async def getProjectPriorities(
     return payload
 
 
+@app.post("/get-all-client-admins")
+async def getAllClientAdmins(
+        request: Request,
+        conn: Connection = Depends(get_conn),
+        user: SimpleUser = Depends(getCurrentUser)):
+    sql = """
+            SELECT u.id, u.email, c.company_name
+              FROM "user" u
+              JOIN casbin_rule r
+                ON r.ptype = 'g'
+               AND r.subject = u.email
+               AND r.domain = 'client_admin'
+              JOIN client c ON c.id = u.client_id
+             WHERE u.is_deleted = FALSE
+               AND c.is_deleted = FALSE
+             ORDER BY c.company_name;
+        """
+    try:
+        rows = await conn.fetch(sql)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    payload = {"client_admins": [dict(r) for r in rows]}
+    if user:
+        payload = await encryptForUser(payload, user.email, conn, request.app)
+    return payload
+
+
+@app.post("/get-account-managers")
+async def getAccountManagers(
+        request: Request,
+        conn: Connection = Depends(get_conn),
+        user: SimpleUser = Depends(getCurrentUser)):
+    sql = """
+            SELECT u.id, u.email, u.first_name, u.last_name
+              FROM "user" u
+              JOIN casbin_rule r
+                ON r.ptype = 'g'
+               AND r.subject = u.email
+               AND r.domain = 'employee_account_manager'
+             WHERE u.is_deleted = FALSE
+               AND u.is_active = TRUE
+             ORDER BY u.first_name;
+        """
+    try:
+        rows = await conn.fetch(sql)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    payload = {"account_managers": [dict(r) for r in rows]}
+    if user:
+        payload = await encryptForUser(payload, user.email, conn, request.app)
+    return payload
+
+
+@app.post("/get-states")
+async def getStates(
+        request: Request,
+        conn: Connection = Depends(get_conn),
+        user: SimpleUser = Depends(getCurrentUser)):
+    sql = """
+            SELECT id, name
+              FROM state
+             WHERE is_deleted = FALSE
+             ORDER BY name;
+        """
+    try:
+        rows = await conn.fetch(sql)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    payload = {"states": [dict(r) for r in rows]}
+    if user:
+        payload = await encryptForUser(payload, user.email, conn, request.app)
+    return payload
+
+
 @app.post("/create-new-project")
 async def createNewProject(
         request: Request,
@@ -1602,6 +1676,7 @@ async def fetchClient(
 async def fetchClientInvoices(
         client_id: str = Query(..., description="Client UUID"),
         size: int = Query(..., gt=0, description="Number of invoices to return"),
+        q: Optional[str] = Query(None, description="Search query"),
         last_seen_created_at: Optional[str] = Query(
             None,
             description="ISO-8601 UTC timestamp cursor (e.g. 2025-05-24T12:00:00Z)"
@@ -1642,12 +1717,13 @@ async def fetchClientInvoices(
           i.client_id = $1
           AND i.is_deleted = FALSE
           AND (i.created_at, i.id) < ($2::timestamptz, $3::uuid)
+          AND ($4::text IS NULL OR i.number::text ILIKE '%' || $4 || '%')
         ORDER BY i.created_at DESC, i.id DESC
-        LIMIT $4;
+        LIMIT $5;
     """
 
     try:
-        rows = await conn.fetch(sql, client_id, cursor_ts, cursor_id, size)
+        rows = await conn.fetch(sql, client_id, cursor_ts, cursor_id, q, size)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1676,6 +1752,7 @@ async def fetchClientOnboardingDocuments(
         data: dict = Depends(decryptPayload()),
         client_id: Optional[str] = Query(None, description="Client UUID"),
         size: Optional[int] = Query(None, gt=0, description="Number of documents to return"),
+        q: Optional[str] = Query(None, description="Search query"),
         last_seen_created_at: Optional[str] = Query(
             None,
             description="ISO-8601 UTC timestamp cursor (e.g. 2025-05-24T12:00:00Z)"
@@ -1689,6 +1766,7 @@ async def fetchClientOnboardingDocuments(
 ):
     client_id = data.get("clientId") or client_id
     size = data.get("size", size)
+    q = data.get("q", q)
     last_seen_created_at = data.get("last_seen_created_at", last_seen_created_at)
     last_seen_id = data.get("last_seen_id", last_seen_id)
     if last_seen_created_at:
@@ -1720,12 +1798,13 @@ async def fetchClientOnboardingDocuments(
           AND d.purpose = 'onboarding_paperwork'
           AND d.is_deleted = FALSE
           AND (d.created_at, d.id) < ($2::timestamptz, $3::uuid)
+          AND ($4::text IS NULL OR d.file_name ILIKE '%' || $4 || '%')
         ORDER BY d.created_at DESC, d.id DESC
-        LIMIT $4;
+        LIMIT $5;
     """
 
     try:
-        rows = await conn.fetch(sql, client_id, cursor_ts, cursor_id, size)
+        rows = await conn.fetch(sql, client_id, cursor_ts, cursor_id, q, size)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1766,6 +1845,7 @@ async def getInsuranceDocuments(
         data: dict = Depends(decryptPayload()),
         client_id: Optional[str] = Query(None, description="Client UUID"),
         size: Optional[int] = Query(None, gt=0, description="Number of documents to return"),
+        q: Optional[str] = Query(None, description="Search query"),
         last_seen_created_at: Optional[str] = Query(
             None,
             description="ISO-8601 UTC timestamp cursor (e.g. 2025-05-24T12:00:00Z)"
@@ -1779,6 +1859,7 @@ async def getInsuranceDocuments(
 ):
     client_id = data.get("clientId") or client_id
     size = data.get("size", size)
+    q = data.get("q", q)
     last_seen_created_at = data.get("last_seen_created_at", last_seen_created_at)
     last_seen_id = data.get("last_seen_id", last_seen_id)
     if last_seen_created_at:
@@ -1810,11 +1891,12 @@ async def getInsuranceDocuments(
           AND d.purpose = 'insurance'
           AND d.is_deleted = FALSE
           AND (d.created_at, d.id) < ($2::timestamptz, $3::uuid)
+          AND ($4::text IS NULL OR d.file_name ILIKE '%' || $4 || '%')
         ORDER BY d.created_at DESC, d.id DESC
-        LIMIT $4;
+        LIMIT $5;
     """
 
-    rows = await conn.fetch(sql, client_id, cursor_ts, cursor_id, size)
+    rows = await conn.fetch(sql, client_id, cursor_ts, cursor_id, q, size)
 
     total = rows[0]["total_count"] if rows else 0
 
@@ -1851,6 +1933,7 @@ async def getInsuranceDocuments(
 async def fetchClientProjects(
         client_id: str = Query(..., description="Client UUID"),
         size: int = Query(..., gt=0, description="Number of projects to return"),
+        q: Optional[str] = Query(None, description="Search query"),
         last_seen_created_at: Optional[str] = Query(
             None,
             description="ISO-8601 UTC timestamp cursor (e.g. 2025-05-24T12:00:00Z)"
@@ -1891,12 +1974,13 @@ async def fetchClientProjects(
           AND s.value = 'Open'
           AND p.is_deleted = FALSE
           AND (p.created_at, p.id) < ($2::timestamptz, $3::uuid)
+          AND ($4::text IS NULL OR p.business_name ILIKE '%' || $4 || '%')
         ORDER BY p.created_at DESC, p.id DESC
-        LIMIT $4;
+        LIMIT $5;
     """
 
     try:
-        rows = await conn.fetch(sql, client_id, cursor_ts, cursor_id, size)
+        rows = await conn.fetch(sql, client_id, cursor_ts, cursor_id, q, size)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

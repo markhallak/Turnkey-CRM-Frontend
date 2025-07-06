@@ -36,8 +36,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { GoKebabHorizontal } from "react-icons/go";
 import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
-import { clientsData as data } from "@/lib/constants";
 import { useRouter } from "next/router";
+import { encryptPost, decryptPost } from "@/lib/apiClient";
 import CurrencyFormat from "react-currency-format";
 
 export type DocumentData = {
@@ -121,6 +121,7 @@ function ClientsTable({ onTableReady }: ClientsTableProps) {
     React.useState<VisibilityState>({});
   const [pageSize] = React.useState(10);
   const [openRowId, setOpenRowId] = React.useState<string | null>(null);
+  const [data, setData] = React.useState<DocumentData[]>([]);
   const table = useReactTable({
     data,
     columns,
@@ -136,6 +137,29 @@ function ClientsTable({ onTableReady }: ClientsTableProps) {
     },
     initialState: { pagination: { pageSize } },
   });
+
+  React.useEffect(() => {
+    const load = async () => {
+      try {
+        const r = await encryptPost("/get-clients", { size: pageSize });
+        const d = await decryptPost<any>(r);
+        if (d) {
+          setData(
+            d.clients.map((c: any) => ({
+              id: c.id,
+              clientName: c.company_name,
+              status: c.status_value,
+              type: c.type_value,
+              totalRevenue: c.total_revenue,
+            }))
+          );
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    load();
+  }, [pageSize]);
 
   React.useEffect(() => {
     onTableReady?.(table);
@@ -176,10 +200,7 @@ function ClientsTable({ onTableReady }: ClientsTableProps) {
                           onClick={() =>
                             router.push(
                               "/clients/view/" +
-                                data.find(
-                                  (project) =>
-                                    project.id === parseInt(row.id) + 1
-                                )?.clientName
+                                row.original.clientName
                             )
                           }
                         >

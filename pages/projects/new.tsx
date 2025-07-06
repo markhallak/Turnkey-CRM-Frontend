@@ -1,6 +1,6 @@
 import Wrapper from "@/components/Wrapper";
 import Link from "next/link";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -51,6 +51,11 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 const NewProject = () => {
+  const [clients, setClients] = useState<any[]>([]);
+  const [priorities, setPriorities] = useState<any[]>([]);
+  const [trades, setTrades] = useState<any[]>([]);
+  const [states, setStates] = useState<any[]>([]);
+  const [assignees, setAssignees] = useState<any[]>([]);
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -63,6 +68,31 @@ const NewProject = () => {
     control,
     formState: { errors },
   } = form;
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        let r = await encryptPost("/get-all-client-admins", {});
+        const c = await decryptPost<{ client_admins: any[] }>(r);
+        setClients(c?.client_admins || []);
+        r = await encryptPost("/get-project-priorities", {});
+        const p = await decryptPost<{ project_priorities: any[] }>(r);
+        setPriorities(p?.project_priorities || []);
+        r = await encryptPost("/get-project-trades", {});
+        const t = await decryptPost<{ project_trades: any[] }>(r);
+        setTrades(t?.project_trades || []);
+        r = await encryptPost("/get-states", {});
+        const s = await decryptPost<{ states: any[] }>(r);
+        setStates(s?.states || []);
+        r = await encryptPost("/get-account-managers", {});
+        const a = await decryptPost<{ account_managers: any[] }>(r);
+        setAssignees(a?.account_managers || []);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    load();
+  }, []);
 
   async function onSubmit(values: FormValues) {
     try {
@@ -113,8 +143,11 @@ const NewProject = () => {
                         <SelectValue placeholder="Select Client" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="client1">Client 1</SelectItem>
-                        <SelectItem value="client2">Client 2</SelectItem>
+                        {clients.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.company_name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   )}
@@ -167,8 +200,11 @@ const NewProject = () => {
                         <SelectValue placeholder="Select Priority" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="high">High</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
+                        {priorities.map((p) => (
+                          <SelectItem key={p.id} value={p.value}>
+                            {p.value}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   )}
@@ -216,8 +252,11 @@ const NewProject = () => {
                         <SelectValue placeholder="Select Trade" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="trade1">Trade 1</SelectItem>
-                        <SelectItem value="trade2">Trade 2</SelectItem>
+                        {trades.map((t) => (
+                          <SelectItem key={t.id} value={t.value}>
+                            {t.value}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   )}
@@ -240,8 +279,11 @@ const NewProject = () => {
                         <SelectValue placeholder="Select Assignee" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="assignee1">Assignee 1</SelectItem>
-                        <SelectItem value="assignee2">Assignee 2</SelectItem>
+                        {assignees.map((a) => (
+                          <SelectItem key={a.id} value={a.id}>
+                            {a.first_name} {a.last_name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   )}
@@ -278,8 +320,11 @@ const NewProject = () => {
                         <SelectValue placeholder="Select State" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="state1">State 1</SelectItem>
-                        <SelectItem value="state2">State 2</SelectItem>
+                        {states.map((s) => (
+                          <SelectItem key={s.id} value={s.name}>
+                            {s.name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   )}

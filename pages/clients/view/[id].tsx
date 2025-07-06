@@ -1,7 +1,7 @@
 "use client";
 
 import Wrapper from "@/components/Wrapper";
-import { clientsData } from "@/lib/constants";
+import { fetchJson } from "@/components/Header";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { useRouter } from "next/router";
 import React, { useEffect, useState } from "react";
@@ -36,18 +36,33 @@ const ClientDetails = () => {
     totalRevenue: number;
   } | null>(null);
 
-  const [inputValue, setInputValue] = useState("1600 Amphitheatre Parkway");
-  const [confirmedValue, setConfirmedValue] = useState(
-    "1600 Amphitheatre Parkway"
-  );
+  const [inputValue, setInputValue] = useState("");
+  const [confirmedValue, setConfirmedValue] = useState("");
 
   const [mapSrc, setMapSrc] = useState("https://www.google.com/maps/embed?...");
 
   useEffect(() => {
-    if (id && typeof id === "string") {
-      const client = clientsData.find((c) => c.clientName === id);
-      setClientData(client || null);
-    }
+    const load = async () => {
+      if (id && typeof id === "string") {
+        try {
+          const r = await fetchJson<{ client: any }>(`/fetch-client?client_id=${id}`);
+          if (r && r.client) {
+            setClientData({
+              id: r.client.id,
+              clientName: r.client.company_name,
+              status: r.client.status_value,
+              type: "commercial",
+              totalRevenue: 0,
+            });
+            setInputValue(r.client.address_line_1 || "");
+            setConfirmedValue(r.client.address_line_1 || "");
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
+    };
+    load();
   }, [id]);
 
   useEffect(() => {
@@ -207,18 +222,18 @@ const ClientDetails = () => {
             </TabsList>
 
             <TabsContent value="invoices" className="w-full p-4 py-5 pb-10">
-              <InvoiceTab />
+              {id && typeof id === "string" && <InvoiceTab clientId={id as string} />}
             </TabsContent>
 
             <TabsContent value="paperwork" className="w-full p-4 py-5 pb-10">
-              <PaperworkTab />
+              {id && typeof id === "string" && <PaperworkTab clientId={id as string} />}
             </TabsContent>
 
             <TabsContent
               value="activeProjects"
               className="w-full p-4 py-5 pb-10"
             >
-              <ProjectsTab />
+              {id && typeof id === "string" && <ProjectsTab clientId={id as string} />}
             </TabsContent>
             <TabsContent value="notes" className="flex-1 overflow-auto p-4">
                 <ScrollArea className="h-full">

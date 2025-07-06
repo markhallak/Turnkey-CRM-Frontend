@@ -1,6 +1,6 @@
 import Wrapper from "@/components/Wrapper";
 import Link from "next/link";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
@@ -26,19 +26,42 @@ import { Button } from "@/components/ui/button";
 import { TbTableExport } from "react-icons/tb";
 import Table from "@/components/Clients/Table";
 import * as XLSX from "xlsx";
+import { encryptPost, decryptPost } from "@/lib/apiClient";
 
 const Clients = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filters, setFilters] = useState<{ type: string[]; status: string[] }>({
-    type: ["residential", "commercial"],
-    status: ["Compliant and Active", "Compliant and Non-active"],
+    type: [],
+    status: [],
   });
+  const [types, setTypes] = useState<any[]>([]);
+  const [statuses, setStatuses] = useState<any[]>([]);
   const [tableInstance, setTableInstance] = useState<any>(null);
   const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
   const labelMap: Record<string, string> = {
     clientName: "Client Name",
     totalRevenue: "Total Revenue",
   };
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        let r = await encryptPost("/get-client-types", {});
+        const t = await decryptPost<{ client_types: any[] }>(r);
+        setTypes(t?.client_types || []);
+        r = await encryptPost("/get-client-statuses", {});
+        const s = await decryptPost<{ client_statuses: any[] }>(r);
+        setStatuses(s?.client_statuses || []);
+        setFilters({
+          type: (t?.client_types || []).map((v) => v.value),
+          status: (s?.client_statuses || []).map((v) => v.value),
+        });
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    load();
+  }, []);
   return (
     <Wrapper title="Clients">
       <div className="flex flex-col px-6 sm:px-0 md: px-0 lg:px-0 pt-6 pb-16">
@@ -81,46 +104,45 @@ const Clients = () => {
                         </DropdownMenuSubTrigger>
                         <DropdownMenuPortal>
                           <DropdownMenuSubContent>
-                            <DropdownMenuCheckboxItem
-                              checked={filters.status.includes(
-                                "Compliant and Active"
-                              )}
-                              textValue="Compliant and Active"
-                              onCheckedChange={(isChecked) => {
-                                const status = [...filters.status];
-                                if (isChecked) {
-                                  status.push("Compliant and Active");
-                                } else {
-                                  status.splice(
-                                    status.indexOf("Compliant and Active"),
-                                    1
-                                  );
-                                }
-                                setFilters({ ...filters, status });
-                              }}
-                            >
-                              Compliant and Active
-                            </DropdownMenuCheckboxItem>
-                            <DropdownMenuCheckboxItem
-                              checked={filters.status.includes(
-                                "Compliant and Non-active"
-                              )}
-                              textValue="Compliant and Non-active"
-                              onCheckedChange={(isChecked) => {
-                                const status = [...filters.status];
-                                if (isChecked) {
-                                  status.push("Compliant and Non-active");
-                                } else {
-                                  status.splice(
-                                    status.indexOf("Compliant and Non-active"),
-                                    1
-                                  );
-                                }
-                                setFilters({ ...filters, status });
-                              }}
-                            >
-                              Compliant and Non-active
-                            </DropdownMenuCheckboxItem>
+                            {statuses.map((s) => (
+                              <DropdownMenuCheckboxItem
+                                key={s.id}
+                                checked={filters.status.includes(s.value)}
+                                textValue={s.value}
+                                onCheckedChange={(isChecked) => {
+                                  const status = [...filters.status];
+                                  if (isChecked) status.push(s.value);
+                                  else status.splice(status.indexOf(s.value), 1);
+                                  setFilters({ ...filters, status });
+                                }}
+                              >
+                                {s.value}
+                              </DropdownMenuCheckboxItem>
+                            ))}
+                          </DropdownMenuSubContent>
+                        </DropdownMenuPortal>
+                      </DropdownMenuSub>
+                      <DropdownMenuSub>
+                        <DropdownMenuSubTrigger>
+                          <span>Type</span>
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuPortal>
+                          <DropdownMenuSubContent>
+                            {types.map((t) => (
+                              <DropdownMenuCheckboxItem
+                                key={t.id}
+                                checked={filters.type.includes(t.value)}
+                                textValue={t.value}
+                                onCheckedChange={(isChecked) => {
+                                  const type = [...filters.type];
+                                  if (isChecked) type.push(t.value);
+                                  else type.splice(type.indexOf(t.value), 1);
+                                  setFilters({ ...filters, type });
+                                }}
+                              >
+                                {t.value}
+                              </DropdownMenuCheckboxItem>
+                            ))}
                           </DropdownMenuSubContent>
                         </DropdownMenuPortal>
                       </DropdownMenuSub>
