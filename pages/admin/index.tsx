@@ -60,6 +60,7 @@ type TableConfig = {
   table?: string;
   category?: string;
   fetchUrl?: string;
+  formFields?: TableField[];
 };
 
 function GenericTable({ config }: { config: TableConfig }) {
@@ -200,9 +201,18 @@ function GenericTable({ config }: { config: TableConfig }) {
             role: form.user_type,
           });
         } else if (config.name === "Employee Account Manager - Client Relations") {
-          await encryptPost("/create-account-manager-client-relation", {
+          await encryptPost("/update-account-manager-client-relation", {
+            old_account_manager_email: selected.account_manager,
+            old_client_id: selected.client,
             account_manager_email: form.account_manager,
             client_id: form.client,
+          });
+        } else if (config.name === "Client Admin - Client Technician Relations") {
+          await encryptPost("/update-client-admin-technician-relation", {
+            old_client_admin_email: selected.client_admin,
+            old_technician_email: selected.technician,
+            client_admin_email: form.client_admin,
+            technician_email: form.technician,
           });
         } else {
           await encryptPost("/admin/update-record", {
@@ -225,6 +235,11 @@ function GenericTable({ config }: { config: TableConfig }) {
           await encryptPost("/create-account-manager-client-relation", {
             account_manager_email: form.account_manager,
             client_id: form.client,
+          });
+        } else if (config.name === "Client Admin - Client Technician Relations") {
+          await encryptPost("/create-client-admin-technician-relation", {
+            client_admin_email: form.client_admin,
+            technician_email: form.technician,
           });
         } else {
           await encryptPost("/admin/create-record", {
@@ -249,6 +264,13 @@ function GenericTable({ config }: { config: TableConfig }) {
           account_manager_email: selected.account_manager,
           client_id: selected.client,
         });
+      } else if (config.name === "Client Admin - Client Technician Relations") {
+        await encryptPost("/delete-client-admin-technician-relation", {
+          client_admin_email: selected.client_admin,
+          technician_email: selected.technician,
+        });
+      } else if (config.name === "User") {
+        await encryptPost("/delete-user", { userId: selected.id });
       } else if (config.name !== "User") {
         await encryptPost("/admin/delete-record", {
           table: config.table,
@@ -397,7 +419,17 @@ function GenericTable({ config }: { config: TableConfig }) {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            {config.fields.map((field) => (
+            {(config.formFields || config.fields)
+              .filter((field) => {
+                if (config.name === "User" && field.key === "assign_to") {
+                  return form.user_type === "Client Technician";
+                }
+                if (config.name === "User" && field.key === "client") {
+                  return form.user_type === "Employee Account Manager";
+                }
+                return true;
+              })
+              .map((field) => (
                 <div key={field.key}>
                   <label className="block text-sm font-medium mb-1">
                     {field.header}
@@ -413,7 +445,12 @@ function GenericTable({ config }: { config: TableConfig }) {
                         <SelectValue placeholder={`Select ${field.header}`} />
                       </SelectTrigger>
                       <SelectContent>
-                        {field.options?.map((opt) => (
+                        {(config.name === "User" && field.key === "assign_to"
+                          ? clientAdmins.map((a) => a.email)
+                          : config.name === "User" && field.key === "client"
+                          ? clients.map((c) => c.company_name || c.clientName)
+                          : field.options || []
+                        ).map((opt: string) => (
                           <SelectItem key={opt} value={opt}>
                             {opt}
                           </SelectItem>
@@ -522,12 +559,14 @@ export default function AdminPage() {
     "Client Admin",
     "Client Technician",
   ];
+  const [clientAdmins, setClientAdmins] = useState<any[]>([]);
+  const [clients, setClients] = useState<any[]>([]);
   const [configs, setConfigs] = useState<TableConfig[]>([]);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [priorities, types, trades, statuses, states, users, relations, qStatuses, iStatuses] = await Promise.all([
+        const [priorities, types, trades, statuses, states, users, relations, caRelations, qStatuses, iStatuses, adminList, clientList] = await Promise.all([
           decryptPost(await encryptPost("/get-project-priorities", {})),
           decryptPost(await encryptPost("/get-project-types", {})),
           decryptPost(await encryptPost("/get-project-trades", {})),
@@ -535,8 +574,11 @@ export default function AdminPage() {
           decryptPost(await encryptPost("/get-states", {})),
           decryptPost(await encryptPost("/get-users", {})),
           decryptPost(await encryptPost("/get-account-manager-client-relations", {})),
+          decryptPost(await encryptPost("/get-client-admin-technician-relations", {})),
           decryptPost(await encryptPost("/get-quote-statuses", {})),
           decryptPost(await encryptPost("/get-invoice-statuses", {})),
+          decryptPost(await encryptPost("/get-all-client-admins", {})),
+          decryptPost(await encryptPost("/get-clients?size=1000", {})),
         ]);
         const cfgs: TableConfig[] = [
           {
@@ -588,7 +630,6 @@ export default function AdminPage() {
               { key: "email", header: "Email" },
               { key: "first_name", header: "First Name" },
               { key: "last_name", header: "Last Name" },
-              { key: "assign_to", header: "Assign Client Admin" },
               {
                 key: "user_type",
                 header: "User Type",
@@ -596,10 +637,24 @@ export default function AdminPage() {
                 options: userTypeOptions,
               },
             ],
+            formFields: [
+              { key: "email", header: "Email" },
+              { key: "first_name", header: "First Name" },
+              { key: "last_name", header: "Last Name" },
+              {
+                key: "user_type",
+                header: "User Type",
+                isSelect: true,
+                options: userTypeOptions,
+              },
+              { key: "client", header: "Client", isSelect: true },
+              { key: "assign_to", header: "Assign Client Admin", isSelect: true },
+            ],
             data: (users?.users || []).map((u: any) => ({
               ...u,
               user_type: userTypeOptions[0],
               assign_to: "",
+              client: "",
             })),
             fetchUrl: "/get-users",
           },
@@ -612,6 +667,16 @@ export default function AdminPage() {
             ],
             data: relations?.relations || [],
             fetchUrl: "/get-account-manager-client-relations",
+          },
+          {
+            name: "Client Admin - Client Technician Relations",
+            table: "client_admin_technician",
+            fields: [
+              { key: "client_admin", header: "Client Admin" },
+              { key: "technician", header: "Client Technician" },
+            ],
+            data: caRelations?.relations || [],
+            fetchUrl: "/get-client-admin-technician-relations",
           },
           {
             name: "Quote Status",
@@ -637,6 +702,8 @@ export default function AdminPage() {
           },
         ];
         setConfigs(cfgs);
+        setClientAdmins(adminList?.client_admins || []);
+        setClients(clientList?.clients || []);
       } catch (err) {
         console.error(err);
       }
