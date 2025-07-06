@@ -79,7 +79,7 @@ def getEnforcer(request: Request) -> SyncedEnforcer:
     return request.app.state.enforcer
 
 
-BYPASS_SESSION = True
+BYPASS_SESSION = False
 
 
 async def authorize(request: Request, user: SimpleUser = Depends(getCurrentUser),
