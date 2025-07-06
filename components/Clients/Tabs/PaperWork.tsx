@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
     Pagination,
     PaginationContent,
@@ -47,12 +47,14 @@ import {
     TableRow,
 } from "@/components/ui/table";
 
-const data: DocumentData[] = [
-    { title: "W9.PDF", type: "W9", dateUploaded: "08/12/2024" },
-    { title: "COImcd.pdf", type: "Sample COI", dateUploaded: "09/14/2025" },
-    { title: "1293.jpeg", type: "License", dateUploaded: "09/14/2025" },
-    { title: "asda.PDF", type: "Certification", dateUploaded: "08/12/2024" },
-];
+import { encryptPost, decryptPost } from "@/lib/apiClient";
+
+const mapData = (rows: any[]): DocumentData[] =>
+  rows.map((r) => ({
+    title: r.title,
+    type: r.document_type,
+    dateUploaded: r.date_uploaded,
+  }));
 
 export type DocumentData = {
     title: string;
@@ -128,11 +130,14 @@ export const columns: ColumnDef<DocumentData>[] = [
     },
 ];
 
-function PaperworkTab() {
+function PaperworkTab({ clientId }: { clientId: string }) {
     const [sorting, setSorting] = useState<SortingState>([]);
     const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
     const [pageSize] = useState(10);
-    const [columnsMenuOpen, setColumnsMenuOpen] = useState(false)
+    const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
+    const [data, setData] = useState<DocumentData[]>([]);
+    const [cursor, setCursor] = useState<{ ts?: string; id?: string }>({});
+    const [query, setQuery] = useState("");
 
     const table = useReactTable({
         data,
@@ -149,15 +154,39 @@ function PaperworkTab() {
         },
         initialState: { pagination: { pageSize } }
     });
+
+    const load = async (reset = false, q = query) => {
+        try {
+            const url = `/fetch-client-onboarding-documents?client_id=${clientId}&size=${pageSize}` +
+                (cursor.ts && !reset ? `&last_seen_created_at=${cursor.ts}&last_seen_id=${cursor.id}` : '') +
+                (q && q.length >= 3 ? `&q=${encodeURIComponent(q)}` : '');
+            const r = await encryptPost(url, {});
+            const j = await decryptPost<any>(r);
+            if (j) {
+                setCursor({ ts: j.last_seen_created_at || undefined, id: j.last_seen_id || undefined });
+                const rows = mapData(j.documents);
+                setData(reset ? rows : [...data, ...rows]);
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    useEffect(() => {
+        if (clientId) load(true);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [clientId]);
     return (
         <div className="w-full">
   <div className="flex flex-wrap items-center gap-2 py-4">
     <Input
       placeholder="Filter titles..."
-      value={(table.getColumn("title")?.getFilterValue() as string) ?? ""}
-      onChange={(event) =>
-        table.getColumn("title")?.setFilterValue(event.target.value)
-      }
+      value={query}
+      onChange={(event) => {
+        const v = event.target.value;
+        setQuery(v);
+        if (v.length >= 3 || v.length === 0) load(true, v);
+      }}
       className="flex-grow lg:flex-none lg:w-[30%]"
     />
 
@@ -262,10 +291,13 @@ function PaperworkTab() {
 
         <PaginationItem>
           <PaginationNext
-            onClick={() => table.nextPage()}
-            aria-disabled={!table.getCanNextPage()}
+            onClick={() => {
+              table.nextPage();
+              load();
+            }}
+            aria-disabled={!cursor.ts}
             className={`cursor-pointer text-gray-600 ${
-              !table.getCanNextPage() ? "opacity-50 pointer-events-none cursor-not-allowed" : ""
+              !cursor.ts ? "opacity-50 pointer-events-none cursor-not-allowed" : ""
             }`}
           />
         </PaginationItem>

@@ -387,17 +387,23 @@ const Header: FC<IProps> = ({ title }) => {
                       </div>
                     ) : (
                       <>
-                        <div className="py-2">
-                          <h3 className="mb-4 text-lg font-semibold mx-4">
-                            Projects
-                          </h3>
-                          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 px-4 mb-2">
-                            {projectResults.map((r, i) => (
-                              <Link
-                                key={i}
-                                href={`/projects/view/${r.poNumber}`}
-                                onClick={() => handleSelectSearch(r.poNumber)}
-                                className="group block rounded-xl bg-white p-6 shadow-md transition-shadow duration-200 hover:shadow-xl w-full h-42"
+                        {projectResults.length === 0 && clientResults.length === 0 ? (
+                          <div className="flex justify-center py-4">
+                            <span className="text-sm text-gray-500">No results</span>
+                          </div>
+                        ) : (
+                          <>
+                            <div className="py-2">
+                              <h3 className="mb-4 text-lg font-semibold mx-4">
+                                Projects
+                              </h3>
+                              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 px-4 mb-2">
+                                {projectResults.map((r, i) => (
+                                  <Link
+                                    key={i}
+                                    href={`/projects/view/${r.poNumber}`}
+                                    onClick={() => handleSelectSearch(r.poNumber)}
+                                    className="group block rounded-xl bg-white p-6 shadow-md transition-shadow duration-200 hover:shadow-xl w-full h-42"
                               >
                                 <div className="flex items-center justify-between">
                                   <span className="text-xl font-medium text-gray-900">
@@ -420,21 +426,21 @@ const Header: FC<IProps> = ({ title }) => {
                                   </span>
                                 </div>
                               </Link>
-                            ))}
-                          </div>
-                        </div>
+                                ))}
+                              </div>
+                            </div>
 
-                        <div className="py-2">
-                          <h3 className="mb-4 text-lg font-semibold mx-4">
-                            Clients
-                          </h3>
-                          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 px-4 pb-5">
-                            {clientResults.map((c, i) => (
-                              <Link
-                                key={i}
-                                href={`/clients/${c.clientName}`}
-                                onClick={() => handleSelectSearch(c.clientName)}
-                                className="group block rounded-xl bg-white p-6 shadow-md transition-shadow duration-200 hover:shadow-xl w-full h-42"
+                            <div className="py-2">
+                              <h3 className="mb-4 text-lg font-semibold mx-4">
+                                Clients
+                              </h3>
+                              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 px-4 pb-5">
+                                {clientResults.map((c, i) => (
+                                  <Link
+                                    key={i}
+                                    href={`/clients/${c.clientName}`}
+                                    onClick={() => handleSelectSearch(c.clientName)}
+                                    className="group block rounded-xl bg-white p-6 shadow-md transition-shadow duration-200 hover:shadow-xl w-full h-42"
                               >
                                 <div className="flex items-center justify-between">
                                   <span className="text-xl font-medium text-gray-900">
@@ -451,9 +457,11 @@ const Header: FC<IProps> = ({ title }) => {
                                   </span>
                                 </div>
                               </Link>
-                            ))}
-                          </div>
-                        </div>
+                                ))}
+                              </div>
+                            </div>
+                          </>
+                        )}
                       </>
                     )}
                     <ScrollBar orientation="vertical" />

@@ -8,7 +8,7 @@ import {
     PaginationPrevious,
 } from "@/components/ui/pagination";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
     ColumnDef,
     SortingState,
@@ -48,29 +48,16 @@ export type InvoiceData = {
     status: string;
 };
 
-const data: InvoiceData[] = [
-    {
-        invoiceNumber: "INV-001",
-        issueDate: "2022-01-01",
-        dueDate: "2022-01-31",
-        amount: 500.00,
-        status: "Pending",
-    },
-    {
-        invoiceNumber: "INV-002",
-        issueDate: "2022-02-01",
-        dueDate: "2022-02-28",
-        amount: 1000.00,
-        status: "Completed",
-    },
-    {
-        invoiceNumber: "INV-003",
-        issueDate: "2022-03-01",
-        dueDate: "2022-03-31",
-        amount: 2000.00,
-        status: "Overdue",
-    },
-]
+import { encryptPost, decryptPost } from "@/lib/apiClient";
+
+const mapData = (rows: any[]): InvoiceData[] =>
+  rows.map((r) => ({
+    invoiceNumber: r.number,
+    issueDate: r.issuance_date,
+    dueDate: r.date_created,
+    amount: r.amount,
+    status: r.status_value,
+  }));
 
 export const columns: ColumnDef<InvoiceData>[] = [
     "invoiceNumber",
@@ -129,11 +116,15 @@ export const columns: ColumnDef<InvoiceData>[] = [
     ),
 }));
 
-function InvoicesTab() {
+function InvoicesTab({ clientId }: { clientId: string }) {
     const [sorting, setSorting] = useState<SortingState>([]);
     const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
     const [pageSize] = useState(10);
-    const [columnsMenuOpen, setColumnsMenuOpen] = useState(false)
+    const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
+    const [data, setData] = useState<InvoiceData[]>([]);
+    const [cursor, setCursor] = useState<{ ts?: string; id?: string }>({});
+    const [query, setQuery] = useState("");
+
     const table = useReactTable({
         data,
         columns,
@@ -150,15 +141,39 @@ function InvoicesTab() {
         initialState: { pagination: { pageSize } },
     });
 
+    const load = async (reset = false, q = query) => {
+        try {
+            const url = `/fetch-client-invoices?client_id=${clientId}&size=${pageSize}` +
+                (cursor.ts && !reset ? `&last_seen_created_at=${cursor.ts}&last_seen_id=${cursor.id}` : '') +
+                (q && q.length >= 3 ? `&q=${encodeURIComponent(q)}` : '');
+            const r = await encryptPost(url, {});
+            const j = await decryptPost<any>(r);
+            if (j) {
+                setCursor({ ts: j.last_seen_created_at || undefined, id: j.last_seen_id || undefined });
+                const rows = mapData(j.invoices);
+                setData(reset ? rows : [...data, ...rows]);
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    useEffect(() => {
+        if (clientId) load(true);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [clientId]);
+
     return (
         <div className="w-full">
   <div className="flex flex-wrap items-center gap-2 py-4">
     <Input
       placeholder="Filter invoice number..."
-      value={(table.getColumn("invoiceNumber")?.getFilterValue() as string) ?? ""}
-      onChange={(event) =>
-        table.getColumn("invoiceNumber")?.setFilterValue(event.target.value)
-      }
+      value={query}
+      onChange={(event) => {
+        const v = event.target.value;
+        setQuery(v);
+        if (v.length >= 3 || v.length === 0) load(true, v);
+      }}
       className="flex-grow lg:flex-none lg:w-[30%]"
     />
 
@@ -256,10 +271,13 @@ function InvoicesTab() {
 
         <PaginationItem>
           <PaginationNext
-            onClick={() => table.nextPage()}
-            aria-disabled={!table.getCanNextPage()}
+            onClick={() => {
+              table.nextPage();
+              load();
+            }}
+            aria-disabled={!cursor.ts}
             className={`cursor-pointer text-gray-600 ${
-              !table.getCanNextPage() ? "opacity-50 pointer-events-none cursor-not-allowed" : ""
+              !cursor.ts ? "opacity-50 pointer-events-none cursor-not-allowed" : ""
             }`}
           />
         </PaginationItem>

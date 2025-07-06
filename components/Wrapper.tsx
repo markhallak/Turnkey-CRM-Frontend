@@ -12,7 +12,11 @@ import {
   fetchWithRetry,
 } from "@/components/Header";
 
-let wrapperFetched = false;
+let wrapperCache: {
+  notifications: WrapperData["notifications"];
+  userName: string;
+  avatarColor: string;
+} | null = null;
 
 interface IProps {
   children: React.ReactNode;
@@ -37,8 +41,10 @@ const Wrapper: FC<IProps> = ({ children, title, initialChildLoading = false }) =
     setChildLoadingState(loadingCount.current > 0);
   };
   useEffect(() => {
-    if (wrapperFetched) return;
-    wrapperFetched = true;
+    if (wrapperCache) {
+      setUserData(wrapperCache);
+      return;
+    }
 
     const fallbackColor = "#000000";
 
@@ -72,19 +78,23 @@ const Wrapper: FC<IProps> = ({ children, title, initialChildLoading = false }) =
             : [];
 
 
-        setUserData({
+        const data = {
           notifications,
           userName: profile.firstName,
           avatarColor: profile.hexColor,
-        });
+        };
+        wrapperCache = data;
+        setUserData(data);
 
       })
       .catch(() => {
-        setUserData({
+        const data = {
           notifications: [],
           userName: "A",
           avatarColor: fallbackColor,
-        });
+        };
+        wrapperCache = data;
+        setUserData(data);
       })
       .finally(() => setChildLoading(false));
   }, []);

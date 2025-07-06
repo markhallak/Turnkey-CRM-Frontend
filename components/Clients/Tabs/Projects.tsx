@@ -8,7 +8,7 @@ import {
     PaginationPrevious,
 } from "@/components/ui/pagination";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
     ColumnDef,
     SortingState,
@@ -37,7 +37,20 @@ import {
     DropdownMenuContent,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { projectsData as data, projectsData } from "@/lib/constants";
+import { encryptPost, decryptPost } from "@/lib/apiClient";
+
+const mapData = (rows: any[]): DocumentData[] =>
+  rows.map((r) => ({
+    poNumber: r.project_id,
+    client: r.business_name,
+    priority: "",
+    type: "",
+    address: "",
+    trade: "",
+    status: r.status_value,
+    nte: "",
+    assignee: "",
+  }));
 import { TbTableExport } from "react-icons/tb";
 import { useRouter } from "next/router";
 import { Input } from "@/components/ui/input";
@@ -103,11 +116,14 @@ export const columns: ColumnDef<DocumentData>[] = [
     ),
 }));
 
-function ProjectsTab() {
+function ProjectsTab({ clientId }: { clientId: string }) {
     const [sorting, setSorting] = useState<SortingState>([]);
     const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
     const [pageSize] = useState(10);
-    const [columnsMenuOpen, setColumnsMenuOpen] = useState(false)
+    const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
+    const [data, setData] = useState<DocumentData[]>([]);
+    const [cursor, setCursor] = useState<{ ts?: string; id?: string }>({});
+    const [query, setQuery] = useState("");
     const table = useReactTable({
         data,
         columns,
@@ -126,16 +142,40 @@ function ProjectsTab() {
 
     const router = useRouter();
 
+    const load = async (reset = false, q = query) => {
+        try {
+            const url = `/fetch-client-projects?client_id=${clientId}&size=${pageSize}` +
+                (cursor.ts && !reset ? `&last_seen_created_at=${cursor.ts}&last_seen_id=${cursor.id}` : '') +
+                (q && q.length >= 3 ? `&q=${encodeURIComponent(q)}` : '');
+            const r = await encryptPost(url, {});
+            const j = await decryptPost<any>(r);
+            if (j) {
+                setCursor({ ts: j.last_seen_created_at || undefined, id: j.last_seen_id || undefined });
+                const rows = mapData(j.projects);
+                setData(reset ? rows : [...data, ...rows]);
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    useEffect(() => {
+        if (clientId) load(true);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [clientId]);
+
     return (
         <div className="w-full">
   {/* search and controls */}
   <div className="flex flex-wrap items-center gap-2 py-4">
     <Input
       placeholder="Filter phone number..."
-      value={(table.getColumn("poNumber")?.getFilterValue() as string) ?? ""}
-      onChange={(event) =>
-        table.getColumn("poNumber")?.setFilterValue(event.target.value)
-      }
+      value={query}
+      onChange={(event) => {
+        const v = event.target.value;
+        setQuery(v);
+        if (v.length >= 3 || v.length === 0) load(true, v);
+      }}
       className="flex-grow lg:flex-none lg:w-[30%]"
     />
 
@@ -255,12 +295,13 @@ function ProjectsTab() {
 
         <PaginationItem>
           <PaginationNext
-            onClick={() => table.nextPage()}
-            aria-disabled={!table.getCanNextPage()}
+            onClick={() => {
+              table.nextPage();
+              load();
+            }}
+            aria-disabled={!cursor.ts}
             className={`cursor-pointer text-gray-600 ${
-              !table.getCanNextPage()
-                ? "opacity-50 pointer-events-none cursor-not-allowed"
-                : ""
+              !cursor.ts ? "opacity-50 pointer-events-none cursor-not-allowed" : ""
             }`}
           />
         </PaginationItem>
