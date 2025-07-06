@@ -198,6 +198,16 @@ def encryptForClient(data: dict, client_pub: bytes, app: FastAPI) -> dict:
     }
 
 
+async def encryptForUser(data: dict, email: str, conn: Connection, app: FastAPI) -> dict:
+    row = await conn.fetchrow(
+        "SELECT public_key FROM user_key WHERE user_email=$1 AND purpose='sig'",
+        email,
+    )
+    if not row:
+        return data
+    return encryptForClient(data, row["public_key"], app)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # startup logic
@@ -480,9 +490,15 @@ async def uploadDocument(fileBlob: bytes) -> dict:
 
 @app.post("/global-search")
 async def globalSearch(
-        q: str = Query(..., description="Search query string"),
-        conn: Connection = Depends(get_conn)
+        request: Request,
+        data: dict = Depends(decryptPayload()),
+        q: str | None = Query(None, description="Search query string"),
+        conn: Connection = Depends(get_conn),
+        user: SimpleUser = Depends(getCurrentUser)
 ):
+    term = data.get("q") or q
+    if not term:
+        raise HTTPException(status_code=400, detail="Missing search term")
     globalSearchSql = """
         SELECT source_table, record_id, search_text, is_deleted
           FROM global_search
@@ -494,17 +510,21 @@ async def globalSearch(
     """
 
     try:
-        results = await conn.fetch(globalSearchSql, q)
+        results = await conn.fetch(globalSearchSql, term)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    return {"results": [dict(r) for r in results]}
+    payload = {"results": [dict(r) for r in results]}
+    if user:
+        payload = await encryptForUser(payload, user.email, conn, request.app)
+    return payload
 
 
 @app.post("/get-notifications")
 async def getNotifications(
         request: Request,
         data: dict = Depends(decryptPayload()),
-        conn: Connection = Depends(get_conn)
+        conn: Connection = Depends(get_conn),
+        user: SimpleUser = Depends(getCurrentUser)
 ):
     last_seen_created_at = data.get("last_seen_created_at")
     last_seen_id = data.get("last_seen_id")
@@ -554,9 +574,8 @@ async def getNotifications(
         "last_seen_created_at": next_ts,
         "last_seen_id": next_id,
     }
-    client_pub = data.get("_client_pub")
-    if client_pub is not None:
-        payload = encryptForClient(payload, client_pub, request.app)
+    if user:
+        payload = await encryptForUser(payload, user.email, conn, request.app)
     return payload
 
 
@@ -587,9 +606,8 @@ async def getProfileDetails(
         "first_name": row["first_name"],
         "hex_color": row["hex_color"],
     }
-    client_pub = data.get("_client_pub")
-    if client_pub is not None:
-        payload = encryptForClient(payload, client_pub, request.app)
+    if user:
+        payload = await encryptForUser(payload, user.email, conn, request.app)
     return payload
 
 
@@ -625,7 +643,8 @@ async def getProjectAssessments(project_id: str, db_pool: Pool = Depends(get_db_
 async def getDashboardMetrics(
         request: Request,
         data: dict = Depends(decryptPayload()),
-        conn: Connection = Depends(get_conn)):
+        conn: Connection = Depends(get_conn),
+        user: SimpleUser = Depends(getCurrentUser)):
     sql = "SELECT * FROM overall_aggregates;"
 
     try:
@@ -633,9 +652,8 @@ async def getDashboardMetrics(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     payload = {"metrics": [dict(r) for r in rows]}
-    client_pub = data.get("_client_pub")
-    if client_pub is not None:
-        payload = encryptForClient(payload, client_pub, request.app)
+    if user:
+        payload = await encryptForUser(payload, user.email, conn, request.app)
     return payload
 
 
@@ -643,7 +661,8 @@ async def getDashboardMetrics(
 async def getCalendarEvents(
         request: Request,
         data: dict = Depends(decryptPayload()),
-        conn: Connection = Depends(get_conn)
+        conn: Connection = Depends(get_conn),
+        user: SimpleUser = Depends(getCurrentUser)
 ):
     month = data["month"]
 
@@ -679,9 +698,8 @@ async def getCalendarEvents(
         events.append(d)
 
     payload = {"events": events}
-    client_pub = data.get("_client_pub")
-    if client_pub is not None:
-        payload = encryptForClient(payload, client_pub, request.app)
+    if user:
+        payload = await encryptForUser(payload, user.email, conn, request.app)
     return payload
 
 
@@ -1184,6 +1202,8 @@ async def fetchProjectQuotesEndpoint(
 
 @app.post("/fetch-project-documents")
 async def fetchProjectDocumentsEndpoint(
+        request: Request,
+        data: dict = Depends(decryptPayload()),
         project_id: str = Query(..., description="Project UUID"),
         size: int = Query(..., gt=0, description="Number of documents to return"),
         last_seen_created_at: Optional[str] = Query(
@@ -1194,7 +1214,8 @@ async def fetchProjectDocumentsEndpoint(
             None,
             description="UUID cursor to break ties if multiple rows share the same timestamp"
         ),
-        conn: Connection = Depends(get_conn)
+        conn: Connection = Depends(get_conn),
+        user: SimpleUser = Depends(getCurrentUser)
 ):
     if last_seen_created_at:
         try:
@@ -1242,7 +1263,7 @@ async def fetchProjectDocumentsEndpoint(
         next_ts = None
         next_id = None
 
-    return {
+    payload = {
         "documents": [
             {
                 "document_id": r["document_id"],
@@ -1258,6 +1279,9 @@ async def fetchProjectDocumentsEndpoint(
         "last_seen_created_at": next_ts,
         "last_seen_id": next_id,
     }
+    if user:
+        payload = await encryptForUser(payload, user.email, conn, request.app)
+    return payload
 
 
 ################################################################################
@@ -1571,8 +1595,10 @@ async def fetchClientInvoices(
 
 @app.post("/fetch-client-onboarding-documents")
 async def fetchClientOnboardingDocuments(
-        client_id: str = Query(..., description="Client UUID"),
-        size: int = Query(..., gt=0, description="Number of documents to return"),
+        request: Request,
+        data: dict = Depends(decryptPayload()),
+        client_id: Optional[str] = Query(None, description="Client UUID"),
+        size: Optional[int] = Query(None, gt=0, description="Number of documents to return"),
         last_seen_created_at: Optional[str] = Query(
             None,
             description="ISO-8601 UTC timestamp cursor (e.g. 2025-05-24T12:00:00Z)"
@@ -1581,8 +1607,13 @@ async def fetchClientOnboardingDocuments(
             None,
             description="UUID cursor to break ties if multiple rows share the same timestamp"
         ),
-        conn: Connection = Depends(get_conn)
+        conn: Connection = Depends(get_conn),
+        user: SimpleUser = Depends(getCurrentUser)
 ):
+    client_id = data.get("clientId") or client_id
+    size = data.get("size", size)
+    last_seen_created_at = data.get("last_seen_created_at", last_seen_created_at)
+    last_seen_id = data.get("last_seen_id", last_seen_id)
     if last_seen_created_at:
         try:
             dt = datetime.fromisoformat(last_seen_created_at)
@@ -1631,7 +1662,7 @@ async def fetchClientOnboardingDocuments(
         next_ts = None
         next_id = None
 
-    return {
+    payload = {
         "documents": [
             {
                 "document_id": r["document_id"],
@@ -1647,12 +1678,17 @@ async def fetchClientOnboardingDocuments(
         "last_seen_created_at": next_ts,
         "last_seen_id": next_id,
     }
+    if user:
+        payload = await encryptForUser(payload, user.email, conn, request.app)
+    return payload
 
 
 @app.post("/get-insurance-documents")
 async def getInsuranceDocuments(
-        client_id: str = Query(..., description="Client UUID"),
-        size: int = Query(..., gt=0, description="Number of documents to return"),
+        request: Request,
+        data: dict = Depends(decryptPayload()),
+        client_id: Optional[str] = Query(None, description="Client UUID"),
+        size: Optional[int] = Query(None, gt=0, description="Number of documents to return"),
         last_seen_created_at: Optional[str] = Query(
             None,
             description="ISO-8601 UTC timestamp cursor (e.g. 2025-05-24T12:00:00Z)"
@@ -1661,8 +1697,13 @@ async def getInsuranceDocuments(
             None,
             description="UUID cursor to break ties if multiple rows share the same timestamp"
         ),
-        conn: Connection = Depends(get_conn)
+        conn: Connection = Depends(get_conn),
+        user: SimpleUser = Depends(getCurrentUser)
 ):
+    client_id = data.get("clientId") or client_id
+    size = data.get("size", size)
+    last_seen_created_at = data.get("last_seen_created_at", last_seen_created_at)
+    last_seen_id = data.get("last_seen_id", last_seen_id)
     if last_seen_created_at:
         try:
             dt = datetime.fromisoformat(last_seen_created_at)
@@ -1708,7 +1749,7 @@ async def getInsuranceDocuments(
         next_ts = None
         next_id = None
 
-    return {
+    payload = {
         "documents": [
             {
                 "document_id": r["document_id"],
@@ -1724,6 +1765,9 @@ async def getInsuranceDocuments(
         "last_seen_created_at": next_ts,
         "last_seen_id": next_id,
     }
+    if user:
+        payload = await encryptForUser(payload, user.email, conn, request.app)
+    return payload
 
 
 @app.post("/fetch-client-projects")
@@ -2115,9 +2159,13 @@ async def getQuote(
 
 @app.post("/get-onboarding-data")
 async def getOnboardingData(
-        clientId: str = Query(..., description="Client UUID"),
-        conn: Connection = Depends(get_conn)
+        request: Request,
+        data: dict = Depends(decryptPayload()),
+        clientId: Optional[str] = Query(None, description="Client UUID"),
+        conn: Connection = Depends(get_conn),
+        user: SimpleUser = Depends(getCurrentUser)
 ):
+    clientId = data.get("clientId") or clientId
     if not clientId or not isUUIDv4(clientId):
         raise HTTPException(
             status_code=400,
@@ -2181,7 +2229,7 @@ async def getOnboardingData(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    return {
+    payload = {
         "general": dict(generalRow) if generalRow else {},
         "service": dict(serviceRow) if serviceRow else {},
         "contact": dict(contactRow) if contactRow else {},
@@ -2190,6 +2238,9 @@ async def getOnboardingData(
         "pricing": [dict(r) for r in pricingRows],
         "references": [dict(r) for r in refsRows],
     }
+    if user:
+        payload = await encryptForUser(payload, user.email, conn, request.app)
+    return payload
 
 
 ################################################################################
@@ -2199,8 +2250,10 @@ async def getOnboardingData(
 
 @app.post("/save-onboarding-data")
 async def saveOnboardingData(
-        payload: dict = Body(...),
-        conn: Connection = Depends(get_conn)
+        request: Request,
+        payload: dict = Depends(decryptPayload()),
+        conn: Connection = Depends(get_conn),
+        user: SimpleUser = Depends(getCurrentUser)
 ):
     clientId = payload.get("clientId")
 
@@ -2334,13 +2387,18 @@ async def saveOnboardingData(
                 ref.get("phone"),
             )
 
-    return {"status": "success"}
+    resp_payload = {"status": "success"}
+    if user:
+        resp_payload = await encryptForUser(resp_payload, user.email, conn, request.app)
+    return resp_payload
 
 
 @app.post("/update-insurance-data")
 async def updateInsuranceData(
-        payload: dict = Body(...),
-        conn: Connection = Depends(get_conn)
+        request: Request,
+        payload: dict = Depends(decryptPayload()),
+        conn: Connection = Depends(get_conn),
+        user: SimpleUser = Depends(getCurrentUser)
 ):
     clientId = payload.get("clientId")
     provider = payload.get("provider")
@@ -2366,7 +2424,10 @@ async def updateInsuranceData(
         endDate,
     )
 
-    return {"insuranceId": insuranceId}
+    resp_payload = {"insuranceId": insuranceId}
+    if user:
+        resp_payload = await encryptForUser(resp_payload, user.email, conn, request.app)
+    return resp_payload
 
 
 @app.post("/auth/invite")
@@ -2386,18 +2447,6 @@ async def inviteUser(
     if not account_type:
         raise HTTPException(status_code=400, detail="Invalid account type")
 
-    hex_color = f"#{random.randint(0, 0xFFFFFF):06x}"
-
-    await conn.fetchrow(
-        "INSERT INTO \"user\" (email, first_name, last_name, hex_color, is_active, is_client) "
-        "VALUES ($1,$2,$3,$4,FALSE,$5) RETURNING id",
-        email_to_invite,
-        first_name,
-        last_name,
-        hex_color,
-        account_type.startswith("Client")
-    )
-
     await createMagicLink(
         conn,
         request.app.state.privateKey,
@@ -2405,20 +2454,6 @@ async def inviteUser(
         recipientEmail=email_to_invite,
         ttlHours=24,
     )
-
-    role = account_type.replace(" ", "_").lower()
-    domain = "*"
-
-    added: bool = enforcer.add_role_for_user_in_domain(
-        email_to_invite,
-        role,
-        domain,
-    )
-
-    if not added:
-        raise HTTPException(status_code=500, detail="Role assignment failed")
-
-    request.app.state.casbin_watcher.update()
 
     return {"status": "Link will be sent shortly"}
 
@@ -2519,6 +2554,37 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
     # When called with encrypted data, finalize recovery setup
     userEmail = data.get("userEmail")
     if userEmail:
+        first_name = data.get("firstName", "")
+        last_name = data.get("lastName", "")
+        account_type = data.get("accountType", "Client")
+        existing = await conn.fetchrow(
+            "SELECT id FROM \"user\" WHERE email=$1 AND is_deleted=FALSE",
+            userEmail,
+        )
+        if not existing:
+            hex_color = f"#{random.randint(0, 0xFFFFFF):06x}"
+            await conn.fetchrow(
+                "INSERT INTO \"user\" (email, first_name, last_name, hex_color, is_active, is_client) "
+                "VALUES ($1,$2,$3,$4,FALSE,$5) RETURNING id",
+                userEmail,
+                first_name,
+                last_name,
+                hex_color,
+                account_type.startswith("Client"),
+            )
+
+            role = account_type.replace(" ", "_").lower()
+            domain = "*"
+
+            added: bool = enforcer.add_role_for_user_in_domain(
+                userEmail,
+                role,
+                domain,
+            )
+            if not added:
+                raise HTTPException(status_code=500, detail="Role assignment failed")
+            request.app.state.casbin_watcher.update()
+
         digest_b64 = data.get("digest")
         salt_b64 = data.get("salt")
         params_b64 = data.get("kdfParams")
@@ -2659,8 +2725,10 @@ async def updateClientKey(request: Request, data: dict = Depends(decryptPayload(
 
 
 @app.post("/auth/complete-onboarding")
-async def completeOnboarding(payload: dict = Body(), conn: Connection = Depends(get_conn),
-                             enforcer: SyncedEnforcer = Depends(getEnforcer)):
+async def completeOnboarding(request: Request, payload: dict = Depends(decryptPayload()),
+                             conn: Connection = Depends(get_conn),
+                             enforcer: SyncedEnforcer = Depends(getEnforcer),
+                             user: SimpleUser = Depends(getCurrentUser)):
     userId = payload.get("userId")
     if not userId or not isUUIDv4(userId):
         raise HTTPException(status_code=400, detail="Invalid userId")
@@ -2668,7 +2736,10 @@ async def completeOnboarding(payload: dict = Body(), conn: Connection = Depends(
         "UPDATE \"user\" SET onboarding_done=TRUE WHERE id=$1",
         userId,
     )
-    return {"status": "ok"}
+    resp_payload = {"status": "ok"}
+    if user:
+        resp_payload = await encryptForUser(resp_payload, user.email, conn, request.app)
+    return resp_payload
 
 
 @app.post("/auth/revoke")
