@@ -37,7 +37,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { GoKebabHorizontal } from "react-icons/go";
 import { ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
-import { projectsData as data, projectsData } from "@/lib/constants";
 import { useRouter } from "next/router";
 
 export type DocumentData = {
@@ -154,10 +153,11 @@ export const columns: ColumnDef<DocumentData>[] = [
 });
 
 type ProjectsTableProps = {
+  data: DocumentData[];
   onTableReady?: (table: any) => void;
 };
 
-function ProjectsTable({ onTableReady }: ProjectsTableProps) {
+function ProjectsTable({ data, onTableReady }: ProjectsTableProps) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
@@ -216,13 +216,7 @@ function ProjectsTable({ onTableReady }: ProjectsTableProps) {
                   ${isLast ? "!pr-8" : ""}
                   py-3.5 pr-8 cursor-pointer capitalize`}
                           onClick={() =>
-                            router.push(
-                              "/projects/view/" +
-                                projectsData.find(
-                                  (project) =>
-                                    project.id === parseInt(row.id) + 1
-                                )?.poNumber
-                            )
+                            router.push("/projects/view/" + row.original.poNumber)
                           }
                         >
                           {flexRender(
