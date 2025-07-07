@@ -1002,11 +1002,15 @@ async def create_tables():
                     ("p", "employee_account_manager", "*", "/send-message", "*"),
 
                     ("p", "client_admin", "*", "/projects", "*"),
+                    ("p", "client_admin", "*", "/projects/*", "*"),
+                    ("p", "client_admin", "*", "/get-messages", "*"),
                     ("p", "client_admin", "*", "/send-message", "*"),
 
-                    ("p", "client_technician", "*", "/projects", "read_without_financial"),
-                    ("p", "client_technician", "*", "/projects/view/*", "read_without_financial"),
+                    ("p", "client_technician", "*", "/projects", "get"),
+                    ("p", "client_technician", "*", "/projects/view/*", "get"),
                     ("p", "client_technician", "*", "/get-messages", "*"),
+
+                    ("g", "client_technician", "client_admin", "*", ""),
                 ]
             )
 
