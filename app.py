@@ -14,7 +14,7 @@ import jwt
 import nacl.bindings
 import uvicorn
 from asyncpg import create_pool, Pool, Connection
-from casbin import SyncedEnforcer, AsyncEnforcer
+from casbin import AsyncEnforcer, AsyncEnforcer
 from casbin_async_sqlalchemy_adapter import Adapter
 from casbin_redis_watcher import new_watcher, WatcherOptions
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -81,15 +81,15 @@ async def getCurrentUser(request: Request) -> SimpleUser | None:
     return None
 
 
-def getEnforcer(request: Request) -> SyncedEnforcer:
+def getEnforcer(request: Request) -> AsyncEnforcer:
     return request.app.state.enforcer
 
 
-BYPASS_SESSION = True
+BYPASS_SESSION = False
 
 
 async def authorize(request: Request, user: SimpleUser = Depends(getCurrentUser),
-                    enforcer: SyncedEnforcer = Depends(getEnforcer)):
+                    enforcer: AsyncEnforcer = Depends(getEnforcer)):
     path = request.url.path
 
     if (
@@ -124,10 +124,10 @@ async def authorize(request: Request, user: SimpleUser = Depends(getCurrentUser)
             if user.is_client:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="onboarding")
 
-        perms = await enforcer.get_policy()  # [[sub, dom, obj, act], …]
+        perms = enforcer.get_policy()  # [[sub, dom, obj, act], …]
 
         # 2. every “g” (role-mapping) rule it knows
-        groups = await enforcer.get_grouping_policy()  # [[sub, role, dom], …]
+        groups = enforcer.get_grouping_policy()  # [[sub, role, dom], …]
 
         # 3. the roles this particular user has in the “*” domain
         roles = await enforcer.get_roles_for_user_in_domain(user.email, "*")
@@ -219,7 +219,7 @@ async def encryptForUser(data: dict, email: str, conn: Connection, app: FastAPI)
     return encryptForClient(data, row["public_key"], app)
 
 
-async def syncCasbinRelations(conn: Connection, enforcer: SyncedEnforcer, watcher=None):
+async def syncCasbinRelations(conn: Connection, enforcer: AsyncEnforcer, watcher=None):
     await conn.execute(
         "DELETE FROM casbin_rule WHERE ptype='g' AND v1 IN ('account_manager_client','client_admin_technician')"
     )
@@ -485,7 +485,7 @@ async def validateLoginToken(
 
     userEmail = row["user_email"]
     jti = str(uuid4())
-    exp_dt = datetime.now(timezone.utc) + timedelta(minutes=60)
+    exp_dt = datetime.now(timezone.utc) + timedelta(minutes=60 * 24)
     await conn.execute(
         "INSERT INTO jwt_token (jti, user_email, expires_at, revoked) VALUES ($1,$2,$3,FALSE)",
         jti,
@@ -584,7 +584,7 @@ async def createAccountManagerClientRelation(
     payload: dict = Body(),
     conn: Connection = Depends(get_conn),
     request: Request = None,
-    enforcer: SyncedEnforcer = Depends(getEnforcer),
+    enforcer: AsyncEnforcer = Depends(getEnforcer),
 ):
     email = payload.get("account_manager_email")
     clientId = payload.get("client_id")
@@ -604,7 +604,7 @@ async def deleteAccountManagerClientRelation(
     payload: dict = Body(),
     conn: Connection = Depends(get_conn),
     request: Request = None,
-    enforcer: SyncedEnforcer = Depends(getEnforcer),
+    enforcer: AsyncEnforcer = Depends(getEnforcer),
 ):
     email = payload.get("account_manager_email")
     clientId = payload.get("client_id")
@@ -624,7 +624,7 @@ async def updateAccountManagerClientRelation(
     payload: dict = Body(),
     conn: Connection = Depends(get_conn),
     request: Request = None,
-    enforcer: SyncedEnforcer = Depends(getEnforcer),
+    enforcer: AsyncEnforcer = Depends(getEnforcer),
 ):
     old_email = payload.get("old_account_manager_email")
     old_client = payload.get("old_client_id")
@@ -664,7 +664,7 @@ async def createClientAdminTechnicianRelation(
     payload: dict = Body(),
     conn: Connection = Depends(get_conn),
     request: Request = None,
-    enforcer: SyncedEnforcer = Depends(getEnforcer),
+    enforcer: AsyncEnforcer = Depends(getEnforcer),
 ):
     admin_email = payload.get("client_admin_email")
     tech_email = payload.get("technician_email")
@@ -687,7 +687,7 @@ async def updateClientAdminTechnicianRelation(
     payload: dict = Body(),
     conn: Connection = Depends(get_conn),
     request: Request = None,
-    enforcer: SyncedEnforcer = Depends(getEnforcer),
+    enforcer: AsyncEnforcer = Depends(getEnforcer),
 ):
     old_admin = payload.get("old_client_admin_email")
     old_tech = payload.get("old_technician_email")
@@ -712,7 +712,7 @@ async def deleteClientAdminTechnicianRelation(
     payload: dict = Body(),
     conn: Connection = Depends(get_conn),
     request: Request = None,
-    enforcer: SyncedEnforcer = Depends(getEnforcer),
+    enforcer: AsyncEnforcer = Depends(getEnforcer),
 ):
     admin_email = payload.get("client_admin_email")
     tech_email = payload.get("technician_email")
@@ -1288,7 +1288,7 @@ async def fetchProject(
         project_id: str = Query(..., description="Project UUID"),
         conn: Connection = Depends(get_conn),
         user: SimpleUser = Depends(getCurrentUser),
-        enforcer: SyncedEnforcer = Depends(getEnforcer)
+        enforcer: AsyncEnforcer = Depends(getEnforcer)
 ):
     sql = """
         SELECT
@@ -2856,7 +2856,7 @@ async def inviteUser(
 
 
 @app.put("/update-user")
-async def updateUser(request: Request, payload: dict = Body(), conn: Connection = Depends(get_conn), enforcer: SyncedEnforcer = Depends(getEnforcer)):
+async def updateUser(request: Request, payload: dict = Body(), conn: Connection = Depends(get_conn), enforcer: AsyncEnforcer = Depends(getEnforcer)):
     user_id = payload.get("userId")
     if not user_id or not await isUUIDv4(user_id):
         raise HTTPException(status_code=400, detail="Invalid userId")
@@ -3012,7 +3012,7 @@ async def login(request: Request, data: dict = Depends(decryptPayload()), conn: 
 
 @app.post("/auth/set-recovery-phrase")
 async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayload(True)),
-                            conn: Connection = Depends(get_conn), enforcer: SyncedEnforcer = Depends(getEnforcer)):
+                            conn: Connection = Depends(get_conn), enforcer: AsyncEnforcer = Depends(getEnforcer)):
 
     print("RECOVERY-PHRASE-PAYLOAD: ", data)
     token_str = data.get("token")
@@ -3110,7 +3110,7 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
         )
 
         jti = str(uuid4())
-        exp_dt = datetime.now(timezone.utc) + timedelta(minutes=60)
+        exp_dt = datetime.now(timezone.utc) + timedelta(minutes=60 * 24)
         await conn.execute(
             "INSERT INTO jwt_token (jti, user_email, expires_at, revoked) VALUES ($1,$2,$3,FALSE)",
             jti,
@@ -3266,7 +3266,7 @@ async def refreshSession(request: Request, conn: Connection = Depends(get_conn))
     redis = request.app.state.redis
     if not await redis.sismember("active_jtis", jti):
         raise HTTPException(status_code=401, detail="revoked")
-    exp_dt = datetime.now(timezone.utc) + timedelta(minutes=60)
+    exp_dt = datetime.now(timezone.utc) + timedelta(minutes=60 * 24)
     await conn.execute("UPDATE jwt_token SET expires_at=$1 WHERE jti=$2", exp_dt, jti)
     session_token = jwt.encode({"sub": email, "jti": jti, "exp": exp_dt}, SECRET_KEY, algorithm="HS256")
     resp = JSONResponse({"status": "ok"})

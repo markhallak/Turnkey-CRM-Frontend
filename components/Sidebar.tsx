@@ -134,9 +134,11 @@ export default function AppSidebar() {
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <SidebarMenuButton className="focus:!ring-0">
-                  {email || "Current User"}
-                  <ChevronUp className="ml-auto" />
+                <SidebarMenuButton className="focus:!ring-0 flex items-center justify-between w-full">
+<span className="flex-1 truncate">
+      {email || "Current User"}
+    </span>
+                      <ChevronUp className="ml-2 flex-shrink-0" />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent
