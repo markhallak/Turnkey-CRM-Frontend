@@ -308,6 +308,7 @@ function GenericTable({
         assignTo,
       });
       await decryptPost(res);
+      await reload();
     } catch (err) {
       console.error(err);
     }

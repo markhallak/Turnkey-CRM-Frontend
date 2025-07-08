@@ -115,14 +115,26 @@ async function decryptResponse<T>(res: Response): Promise<T | null> {
   // non-2xx
   if (!res.ok) {
     if (res.status === 403) {
-      // try to parse a JSON error
       try {
+        const errJ = await res.json();
         if (errJ?.detail === "set-recovery-phrase" || errJ?.detail === "onboarding") {
           window.location.href = `/${errJ.detail}`;
+        } else {
+          toast({ description: "Access denied", variant: "destructive" });
+          let redirect = "/dashboard";
+          try {
+            const me = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/auth/me`, { credentials: "include" });
+            if (me.ok) {
+              const mj = await me.json();
+              if (mj.is_client) redirect = "/clients";
+            }
+          } catch {}
+          window.location.href = redirect;
         }
       } catch {
-        // ignore
+        window.location.href = "/dashboard";
       }
+      return null;
     }
   }
 
