@@ -30,7 +30,6 @@ from sqlalchemy.orm import declarative_base
 from constants import ASYNCPG_URL, SECRET_KEY, REDIS_URL, KMS_URL
 from util import isUUIDv4, createMagicLink, generateJwtRs256, decodeJwtRs256
 
-
 class SimpleUser:
     def __init__(self, id: UUID, email: str, first_name: str, last_name: str, setup_done: bool, onboarding_done: bool, is_client: bool):
         self.id = id
@@ -124,27 +123,14 @@ async def authorize(request: Request, user: SimpleUser = Depends(getCurrentUser)
             if user.is_client:
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="onboarding")
 
-        perms = enforcer.get_policy()  # [[sub, dom, obj, act], …]
-
-        # 2. every “g” (role-mapping) rule it knows
-        groups = enforcer.get_grouping_policy()  # [[sub, role, dom], …]
-
-        # 3. the roles this particular user has in the “*” domain
-        roles = await enforcer.get_roles_for_user_in_domain(user.email, "*")
-
-        # 4. all permissions this user already enjoys
-        user_perms = await enforcer.get_permissions_for_user(user.email)
-        print("PERMS: ", perms)
-        print("GROUPS: ", groups)
-        print("ROLES: ", roles)
-        print("USER PERMS: ", user_perms)
-
         sub = str(user.email)
         domain = "*"
         obj = path
         act = request.method.lower()
 
-        if not enforcer.enforce(sub, domain, obj, act):
+        allowed = enforcer.enforce_ex(sub, domain, obj, act)
+
+        if not allowed:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
 
     return True
@@ -268,6 +254,16 @@ async def lifespan(app: FastAPI):
         v3 = Column(String(255))
         v4 = Column(String(255))
         v5 = Column(String(255))
+
+        def __str__(self):
+            parts = [self.ptype]
+            for v in (self.v0, self.v1, self.v2, self.v3, self.v4, self.v5):
+                if v is None:
+                    break
+                parts.append(v)
+            return ", ".join(parts)
+
+        __repr__ = __str__
 
     adapter = Adapter(engine, db_class=CasbinRule)
     enforcer = AsyncEnforcer("model.conf", adapter)
@@ -410,7 +406,7 @@ async def save_role_mapping(sub: str, role: str, dom: str = "*", delete: bool = 
             )
         else:
             await conn.execute(
-                "INSERT INTO casbin_rule (ptype, v0, v1, v2, v3) VALUES ('g',$1,$2,$3,'') ON CONFLICT DO NOTHING",
+                "INSERT INTO casbin_rule (ptype, v0, v1, v2) VALUES ('g',$1,$2,$3) ON CONFLICT DO NOTHING",
                 sub,
                 role,
                 dom,
@@ -2918,8 +2914,8 @@ async def updateUser(request: Request, payload: dict = Body(), conn: Connection 
 
 
 @app.post("/delete-user")
-async def deleteUser(payload: dict = Body(), conn: Connection = Depends(get_conn)):
-    user_id = payload.get("userId")
+async def deleteUser(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
+    user_id = data.get("userId")
     if not user_id or not await isUUIDv4(user_id):
         raise HTTPException(status_code=400, detail="Invalid userId")
     try:
@@ -3055,7 +3051,6 @@ async def login(request: Request, data: dict = Depends(decryptPayload()), conn: 
 async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayload(True)),
                             conn: Connection = Depends(get_conn), enforcer: AsyncEnforcer = Depends(getEnforcer)):
 
-    print("RECOVERY-PHRASE-PAYLOAD: ", data)
     token_str = data.get("token")
     if not token_str:
         raise HTTPException(status_code=400, detail="missing token")
@@ -3077,7 +3072,6 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
 
     # When called with encrypted data, finalize recovery setup
     userEmail = data.get("userEmail")
-    print("USER EMAIL: ", userEmail)
     if userEmail:
         first_name = data.get("firstName", "")
         last_name = data.get("lastName", "")
@@ -3155,8 +3149,7 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
             userEmail,
             ("client_admin" in roles)
         )
-        print("ROLES: ", roles)
-        print("IS CLIENT: ", "client_admin" in roles)
+
         if "client_admin" in roles:
             next_payload = {
                 "next_step": "/onboarding",
