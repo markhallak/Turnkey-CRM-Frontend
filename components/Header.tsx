@@ -29,7 +29,7 @@ export async function fetchJson<T>(path: string, params: Record<string, any> = {
 
 export async function fetchWithRetry<T>(
   requestFn: () => Promise<T>,
-  retries = 2,
+  retries = 1,
   delayMs = 3000
 ) {
   let lastError: unknown;

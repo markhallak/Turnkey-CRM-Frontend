@@ -67,32 +67,32 @@ export default function AppSidebar() {
   });
   const [email, setEmail] = useState<string>("");
 
-  useEffect(() => {
-    const loadAll = async () => {
-      try {
-        const r1 = await encryptPost("/get-client-types", {});
-        const t = await decryptPost<{ client_types: any[] }>(r1);
-        setTypes(t?.client_types || []);
-
-        const r2 = await encryptPost("/get-client-statuses", {});
-        const s = await decryptPost<{ client_statuses: any[] }>(r2);
-        setStatuses(s?.client_statuses || []);
-
-        setFilters({
-          type: (t?.client_types || []).map((v) => v.value),
-          status: (s?.client_statuses || []).map((v) => v.value),
-        });
-
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL }/auth/me`, {credentials: "include",});
-        const data = await res.json();
-        setEmail(data.email);
-      } catch (err) {
-        console.error("Error in loadAll:", err);
-      }
-    };
-
-    loadAll();
-  }, []);
+//   useEffect(() => {
+//     const loadAll = async () => {
+//       try {
+//         const r1 = await encryptPost("/get-client-types", {});
+//         const t = await decryptPost<{ client_types: any[] }>(r1);
+//         setTypes(t?.client_types || []);
+//
+//         const r2 = await encryptPost("/get-client-statuses", {});
+//         const s = await decryptPost<{ client_statuses: any[] }>(r2);
+//         setStatuses(s?.client_statuses || []);
+//
+//         setFilters({
+//           type: (t?.client_types || []).map((v) => v.value),
+//           status: (s?.client_statuses || []).map((v) => v.value),
+//         });
+//
+//         const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL }/auth/me`, {credentials: "include",});
+//         const data = await res.json();
+//         setEmail(data.email);
+//       } catch (err) {
+//         console.error("Error in loadAll:", err);
+//       }
+//     };
+//
+//     loadAll();
+//   }, []);
 
   return (
     <Sidebar>

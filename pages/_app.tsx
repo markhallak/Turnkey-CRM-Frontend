@@ -71,7 +71,7 @@ export default function App({ Component, pageProps }: AppProps) {
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/auth/me`,
           { credentials: 'include' }
         );
-        if (!me.ok) throw new Error('No session');
+        if (!me.ok) router.replace('/auth/login');
         setIsAuthenticated(true);
         // 2) initial refresh to extend cookie
         await fetch(

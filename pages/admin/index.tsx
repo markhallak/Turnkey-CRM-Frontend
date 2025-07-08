@@ -331,7 +331,7 @@ function GenericTable({ config }: { config: TableConfig }) {
               .getColumn(config.fields[0].key)
               ?.setFilterValue(e.target.value)
           }
-          className="max-w-sm"
+          className="max-w-xs mr-2"
         />
         <Button
           onClick={() => {

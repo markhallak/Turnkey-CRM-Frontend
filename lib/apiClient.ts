@@ -9,12 +9,6 @@ import {
   clearClientKeyStorage,
 } from "./clientKeys";
 
-// helper that reads .text(), returns null if empty, otherwise parses JSON
-async function safeJson<T>(res: Response): Promise<T | null> {
-  const txt = await res.text();
-  if (!txt) return null;
-  return JSON.parse(txt) as T;
-}
 
 async function fetchServerKey(): Promise<Uint8Array> {
   const res = await fetch(
@@ -27,14 +21,11 @@ async function fetchServerKey(): Promise<Uint8Array> {
     }
   );
   if (!res.ok) {
-    throw new Error(`failed to fetch server public key: ${res.status}`);
   }
-  // safeJson will never blow up on empty
-  const payload = await safeJson<{ public_key: string }>(res);
+  const payload = await res.json();
   // grab it into a local var
   const publicKeyB64 = payload?.public_key;
   if (!publicKeyB64) {
-    throw new Error("no public_key in /auth/ed25519-public-key response");
   }
   // cache it
   if (typeof localStorage !== "undefined") {
@@ -57,7 +48,6 @@ async function encryptRequest(
     if (!isAuthRequest && typeof document !== "undefined") {
       document.cookie = "session=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
       window.location.href = "/auth/login";
-      throw new Error("missing client key");
     }
     return fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}${path}`, {
       method,
@@ -73,7 +63,6 @@ async function encryptRequest(
   if (!clientPub || !x25519Priv) {
     clearClientKeyStorage();
     if (typeof window !== "undefined") window.location.href = "/auth/login";
-    throw new Error("missing client key data");
   }
 
   // get server pubkey
@@ -119,22 +108,17 @@ async function decryptResponse<T>(res: Response): Promise<T | null> {
     if (res.status === 403) {
       // try to parse a JSON error
       try {
-        const errJ = await safeJson<{ detail?: string }>(res);
         if (errJ?.detail === "set-recovery-phrase" || errJ?.detail === "onboarding") {
           window.location.href = `/${errJ.detail}`;
-          throw new Error("redirect");
         }
       } catch {
         // ignore
       }
     }
-    // fallback to text if any
-    const txt = await res.text().catch(() => `status ${res.status}`);
-    throw new Error(txt);
   }
 
   // now 2xx: maybe encrypted envelope, maybe plain JSON, maybe empty
-  const maybe = await safeJson<any>(res);
+  const maybe = await res.json();
   if (!maybe || !maybe.ciphertext) {
     // either empty body or plain JSON
     return maybe as T;
@@ -145,7 +129,6 @@ async function decryptResponse<T>(res: Response): Promise<T | null> {
   if (!ok) {
     clearClientKeyStorage();
     if (typeof window !== "undefined") window.location.href = "/auth/login";
-    throw new Error("missing client key");
   }
 
   const serverPub = await fetchServerKey();
@@ -153,7 +136,6 @@ async function decryptResponse<T>(res: Response): Promise<T | null> {
   if (!xPriv) {
     clearClientKeyStorage();
     if (typeof window !== "undefined") window.location.href = "/auth/login";
-    throw new Error("missing client key data");
   }
 
   const serverCurvePub = ed2curve.convertPublicKey(serverPub);

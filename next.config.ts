@@ -12,7 +12,7 @@ const nextConfig: NextConfig = {
   images: {
     domains: ["images.squarespace-cdn.com"],
   },
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer, dev }) => {
 
     // Inline any .wasm as base64 (for argon2-browser or other WASM modules)
     config.module.rules.push({
@@ -27,6 +27,15 @@ const nextConfig: NextConfig = {
         ...config.resolve.fallback,
         fs: false,
       };
+    }
+
+    if (dev) {
+      // Show all Webpack infrastructure logs:
+      config.infrastructureLogging = {
+        level: 'verbose',
+      };
+      // And dump full stats (modules, chunk info, etc.):
+      config.stats = 'verbose';
     }
 
     return config;

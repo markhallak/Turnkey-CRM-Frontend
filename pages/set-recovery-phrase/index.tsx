@@ -17,7 +17,7 @@ export default function SetRecoveryPhrasePage() {
   useEffect(() => {
     const verifyAndSetup = async () => {
       if (!token) {
-        toast({ description: "Missing token.", variant: "destructive" });
+        toast({ description: "Missing token. Please use another link.", variant: "destructive" });
         return;
       }
       try {
@@ -37,7 +37,7 @@ export default function SetRecoveryPhrasePage() {
     verifyAndSetup();
   }, [token, toast]);
 
-  if (!token) return <p className="p-4">Missing token</p>;
+  if (!token) return <p className="p-4"></p>;
   if (!info) return <Loading />;
 
   return (

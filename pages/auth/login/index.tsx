@@ -15,7 +15,6 @@ export default function LoginPage() {
   useEffect(() => {
     const verify = async () => {
       if (!token) {
-        toast({ description: "Missing token.", variant: "destructive" })
         return
       }
       setVerifying(true)
