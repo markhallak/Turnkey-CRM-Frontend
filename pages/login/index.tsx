@@ -20,7 +20,10 @@ export default function LoginPage() {
       setVerifying(true)
       try {
         const res = await encryptPost("/auth/validate-login-token", { token })
-        if (!res.ok) throw new Error("validate")
+        if (!res.ok) {
+          toast({ description: "Invalid or expired login link.", variant: "destructive" })
+          return
+        }
         const data = await decryptPost<{ token: string }>(res)
         let serverRsaPub = localStorage.getItem("serverRsaPublicKey")
         if (!serverRsaPub) {

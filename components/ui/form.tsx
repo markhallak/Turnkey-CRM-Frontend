@@ -12,6 +12,7 @@ import {
 
 import { cn } from "@/lib/utils"
 import { Label } from "@/components/ui/label"
+import { toast } from "@/hooks/use-toast"
 
 const Form = FormProvider
 
@@ -47,7 +48,8 @@ const useFormField = () => {
   const fieldState = getFieldState(fieldContext.name, formState)
 
   if (!fieldContext) {
-    throw new Error("useFormField should be used within <FormField>")
+    toast({ description: "useFormField should be used within <FormField>", variant: "destructive" })
+    return {} as any
   }
 
   const { id } = itemContext

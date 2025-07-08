@@ -22,7 +22,10 @@ export default function SetRecoveryPhrasePage() {
       }
       try {
         const res = await encryptPost("/auth/validate-signup-token", { token });
-        if (!res.ok) throw new Error("validate");
+        if (!res.ok) {
+          toast({ description: "Invalid or expired signup link.", variant: "destructive" });
+          return;
+        }
         const j = await decryptPost<{ userEmail: string }>(res);
         setInfo({ userEmail: j.userEmail, firstName: j.firstName, lastName: j.lastName, accountType: j.accountType });
       } catch (err) {
