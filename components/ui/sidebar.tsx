@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"
-import { toast } from "@/hooks/use-toast"
 import {
   Sheet,
   SheetContent,
@@ -46,8 +45,7 @@ const SidebarContext = React.createContext<SidebarContextProps | null>(null)
 function useSidebar() {
   const context = React.useContext(SidebarContext)
   if (!context) {
-    toast({ description: "useSidebar must be used within a SidebarProvider.", variant: "destructive" })
-    return {} as any
+    throw new Error("useSidebar must be used within a SidebarProvider.")
   }
 
   return context
