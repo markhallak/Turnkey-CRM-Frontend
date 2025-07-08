@@ -10,7 +10,17 @@ import {
 } from "./clientKeys";
 
 
+let cachedServerKey: Uint8Array | null = null;
+
 async function fetchServerKey(): Promise<Uint8Array> {
+  if (cachedServerKey) return cachedServerKey;
+  if (typeof localStorage !== "undefined") {
+    const existing = localStorage.getItem("serverEd25519PublicKey");
+    if (existing) {
+      cachedServerKey = Buffer.from(existing, "base64");
+      return cachedServerKey;
+    }
+  }
   const res = await fetch(
     `${process.env.NEXT_PUBLIC_BACKEND_URL}/auth/ed25519-public-key`,
     {
@@ -20,19 +30,16 @@ async function fetchServerKey(): Promise<Uint8Array> {
       credentials: "include",
     }
   );
-  if (!res.ok) {
-  }
   const payload = await res.json();
-  // grab it into a local var
   const publicKeyB64 = payload?.public_key;
-  if (!publicKeyB64) {
+  if (publicKeyB64) {
+    cachedServerKey = Buffer.from(publicKeyB64, "base64");
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem("serverEd25519PublicKey", publicKeyB64);
+    }
+    return cachedServerKey;
   }
-  // cache it
-  if (typeof localStorage !== "undefined") {
-    localStorage.setItem("serverEd25519PublicKey", publicKeyB64);
-  }
- // return the decoded bytes
-  return Buffer.from(publicKeyB64, "base64");
+  throw new Error("missing server key");
 }
 
 async function encryptRequest(

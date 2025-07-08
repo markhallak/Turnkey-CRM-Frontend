@@ -9,6 +9,7 @@ import "@/styles/input-border-animation.css";
 import { Toaster } from "@/components/ui/toaster";
 import { ToastProvider } from "@/components/ui/toast";
 import { loadClientKeys } from "@/lib/clientKeys";
+import { fetchServerKey } from "@/lib/apiClient";
 
 export default function App({ Component, pageProps }: AppProps) {
   const router = useRouter();
@@ -81,6 +82,7 @@ export default function App({ Component, pageProps }: AppProps) {
         // 3) load client keys
         const hasKeys = await loadClientKeys();
         if (!hasKeys) throw new Error('Missing keys');
+        await fetchServerKey();
       } catch (err) {
         console.error('Init auth error:', err);
         setIsAuthenticated(false);

@@ -386,6 +386,7 @@ app.add_middleware(
     allow_credentials=True,  # <-- if you send cookies or Authorization headers
     allow_methods=["*"],  # <-- GET, POST, PUT, DELETE, OPTIONS, etc
     allow_headers=["*"],  # <-- allow all request headers
+    max_age=86400,
 )
 
 

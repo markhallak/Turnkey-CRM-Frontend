@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Wrapper from "@/components/Wrapper";
 import {
   ColumnDef,
@@ -559,14 +559,24 @@ export default function AdminPage() {
     "Client Admin",
     "Client Technician",
   ];
+  const [clientTypes, setClientTypes] = useState<any[]>([]);
+  const [clientStatuses, setClientStatuses] = useState<any[]>([]);
+  const [filters, setFilters] = useState<{ type: string[]; status: string[] }>({
+    type: [],
+    status: [],
+  });
+  const [email, setEmail] = useState<string>("");
   const [clientAdmins, setClientAdmins] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   const [configs, setConfigs] = useState<TableConfig[]>([]);
+  const loaded = useRef(false);
 
   useEffect(() => {
+    if (loaded.current) return;
+    loaded.current = true;
     const load = async () => {
       try {
-        const [priorities, types, trades, statuses, states, users, relations, caRelations, qStatuses, iStatuses, adminList, clientList] = await Promise.all([
+        const [priorities, types, trades, statuses, states, users, relations, caRelations, qStatuses, iStatuses, adminList, clientList, cTypes, cStatuses, me] = await Promise.all([
           decryptPost(await encryptPost("/get-project-priorities", {})),
           decryptPost(await encryptPost("/get-project-types", {})),
           decryptPost(await encryptPost("/get-project-trades", {})),
@@ -579,6 +589,9 @@ export default function AdminPage() {
           decryptPost(await encryptPost("/get-invoice-statuses", {})),
           decryptPost(await encryptPost("/get-all-client-admins", {})),
           decryptPost(await encryptPost("/get-clients?size=1000", {})),
+          decryptPost(await encryptPost("/get-client-types", {})),
+          decryptPost(await encryptPost("/get-client-statuses", {})),
+          fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/auth/me`, { credentials: "include" }).then((r) => r.json()),
         ]);
         const cfgs: TableConfig[] = [
           {
@@ -704,6 +717,13 @@ export default function AdminPage() {
         setConfigs(cfgs);
         setClientAdmins(adminList?.client_admins || []);
         setClients(clientList?.clients || []);
+        setClientTypes(cTypes?.client_types || []);
+        setClientStatuses(cStatuses?.client_statuses || []);
+        setFilters({
+          type: (cTypes?.client_types || []).map((v: any) => v.value),
+          status: (cStatuses?.client_statuses || []).map((v: any) => v.value),
+        });
+        setEmail(me?.email || "");
       } catch (err) {
         console.error(err);
       }
