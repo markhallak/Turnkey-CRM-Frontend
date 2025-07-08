@@ -63,7 +63,15 @@ type TableConfig = {
   formFields?: TableField[];
 };
 
-function GenericTable({ config }: { config: TableConfig }) {
+function GenericTable({
+  config,
+  clientAdmins,
+  clients,
+}: {
+  config: TableConfig
+  clientAdmins: any[]
+  clients: any[]
+}) {
   const [data, setData] = useState(() =>
     (config.data || []).map((item) => ({ ...item }))
   );
@@ -735,7 +743,12 @@ export default function AdminPage() {
     <Wrapper title="Admin">
       <div className="mt-5">
         {configs.map((cfg) => (
-          <GenericTable key={cfg.name} config={cfg} />
+          <GenericTable
+            key={cfg.name}
+            config={cfg}
+            clientAdmins={clientAdmins}
+            clients={clients}
+          />
         ))}
       </div>
     </Wrapper>

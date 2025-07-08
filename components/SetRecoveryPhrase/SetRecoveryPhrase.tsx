@@ -58,7 +58,10 @@ export default function SetRecoveryPhrase({
         }),
         credentials: "include",
       });
-      if (!resHash.ok) throw new Error("hash");
+      if (!resHash.ok) {
+        toast({ description: "Hash generation failed", variant: "destructive" });
+        return;
+      }
       const { hash: hashB64 } = await resHash.json();
       const seed = Buffer.from(hashB64, "base64");
       await createClientKeys(seed);

@@ -8,6 +8,7 @@ import { useEffect, useState, useRef } from "react";
 import "@/styles/input-border-animation.css";
 import { Toaster } from "@/components/ui/toaster";
 import { ToastProvider } from "@/components/ui/toast";
+import { toast } from "@/hooks/use-toast";
 import { loadClientKeys } from "@/lib/clientKeys";
 import { fetchServerKey } from "@/lib/apiClient";
 
@@ -81,7 +82,10 @@ export default function App({ Component, pageProps }: AppProps) {
         );
         // 3) load client keys
         const hasKeys = await loadClientKeys();
-        if (!hasKeys) throw new Error('Missing keys');
+        if (!hasKeys) {
+          toast({ description: 'Missing keys', variant: 'destructive' });
+          return;
+        }
         await fetchServerKey();
       } catch (err) {
         console.error('Init auth error:', err);
@@ -107,7 +111,10 @@ export default function App({ Component, pageProps }: AppProps) {
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/auth/refresh-session`,
           { method: 'POST', credentials: 'include' }
         );
-        if (!res.ok) throw new Error('Refresh failed');
+        if (!res.ok) {
+          toast({ description: 'Refresh failed', variant: 'destructive' });
+          return;
+        }
       } catch (err) {
         console.error('Token refresh error:', err);
         clearInterval(refreshInterval.current as NodeJS.Timeout);

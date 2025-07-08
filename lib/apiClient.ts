@@ -2,6 +2,7 @@
 import { serverUrl } from "./config";
 import nacl from "tweetnacl";
 import * as ed2curve from "ed2curve";
+import { toast } from "@/hooks/use-toast";
 import {
   loadClientKeys,
   getEd25519PublicKey,
@@ -39,7 +40,8 @@ async function fetchServerKey(): Promise<Uint8Array> {
     }
     return cachedServerKey;
   }
-  throw new Error("missing server key");
+  toast({ description: "missing server key", variant: "destructive" });
+  return new Uint8Array();
 }
 
 async function encryptRequest(

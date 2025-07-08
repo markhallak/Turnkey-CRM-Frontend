@@ -1,4 +1,5 @@
 import React, { createContext, useContext } from "react";
+import { toast } from "@/hooks/use-toast";
 export interface NotificationItem {
   id: string;
   message: string;
@@ -19,7 +20,10 @@ const WrapperContext = createContext<WrapperData | null>(null);
 
 export function useWrapperData() {
   const ctx = useContext(WrapperContext);
-  if (!ctx) throw new Error("useWrapperData must be used within Wrapper");
+  if (!ctx) {
+    toast({ description: "useWrapperData must be used within Wrapper", variant: "destructive" });
+    return {} as any;
+  }
   return ctx;
 }
 

@@ -52,7 +52,10 @@ export default function LoginForm({
         body: JSON.stringify({ email }),
         credentials: "include",
       });
-      if (!r.ok) throw new Error(`status ${r.status}`);
+      if (!r.ok) {
+        toast({ description: `status ${r.status}`, variant: "destructive", duration: 5000 });
+        return;
+      }
       toast({ description: "Check your email for a login link.", duration: 5000 });
     } catch (err: any) {
       const msg = typeof err.message === "string" ? err.message : "";
@@ -82,7 +85,10 @@ export default function LoginForm({
         toast({ description: "Account not found", variant: "destructive", duration: 5000 });
         return;
       }
-      if (!res.ok) throw new Error("params");
+      if (!res.ok) {
+        toast({ description: "params", variant: "destructive", duration: 5000 });
+        return;
+      }
       const j = await decryptPost(res);
       const params = JSON.parse(Buffer.from(j.kdfParams, "base64").toString());
       const resHash = await fetch("/api/argon-hash", {
@@ -91,7 +97,10 @@ export default function LoginForm({
         body: JSON.stringify({ pass: phrase, salt: j.salt, ...params }),
         credentials: "include",
       });
-      if (!resHash.ok) throw new Error("hash");
+      if (!resHash.ok) {
+        toast({ description: "hash", variant: "destructive", duration: 5000 });
+        return;
+      }
       const { hash: hashB64 } = await resHash.json();
       await createClientKeys(Buffer.from(hashB64, "base64"));
       const up = await encryptPost("/auth/update-client-key", { userId: j.userId, digest: hashB64 });

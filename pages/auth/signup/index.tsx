@@ -17,7 +17,11 @@ export default function SignUpPage() {
       setVerifying(true);
       try {
         const res = await encryptPost("/auth/signup", { u, s });
-        if (!res.ok) throw new Error("failed");
+        if (!res.ok) {
+          toast({ description: "Signup failed", variant: "destructive" });
+          router.replace("/auth/login");
+          return;
+        }
         const d = await decryptPost<{ token: string }>(res);
         router.replace(`/set-recovery-phrase?token=${encodeURIComponent(d.token)}`);
       } catch {
