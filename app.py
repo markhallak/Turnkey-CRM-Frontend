@@ -637,6 +637,106 @@ async def deleteAccountManagerClientRelation(
     return {"status": "deleted"}
 
 
+@app.put("/update-project-priority")
+async def updateProjectPriority(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
+    return await adminUpdateRecord({**data, "table": "project_priority"}, conn)
+
+
+@app.post("/delete-project-priority")
+async def deleteProjectPriority(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
+    return await adminDeleteRecord({"table": "project_priority", "id": data.get("id")}, conn)
+
+
+@app.put("/update-project-type")
+async def updateProjectType(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
+    return await adminUpdateRecord({**data, "table": "project_type"}, conn)
+
+
+@app.post("/delete-project-type")
+async def deleteProjectType(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
+    return await adminDeleteRecord({"table": "project_type", "id": data.get("id")}, conn)
+
+
+@app.put("/update-project-trade")
+async def updateProjectTrade(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
+    return await adminUpdateRecord({**data, "table": "project_trade"}, conn)
+
+
+@app.post("/delete-project-trade")
+async def deleteProjectTrade(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
+    return await adminDeleteRecord({"table": "project_trade", "id": data.get("id")}, conn)
+
+
+@app.put("/update-state")
+async def updateState(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
+    return await adminUpdateRecord({**data, "table": "state"}, conn)
+
+
+@app.post("/delete-state")
+async def deleteState(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
+    return await adminDeleteRecord({"table": "state", "id": data.get("id")}, conn)
+
+
+@app.put("/update-client-type")
+async def updateClientType(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
+    return await adminUpdateRecord({**data, "table": "client_type"}, conn)
+
+
+@app.post("/delete-client-type")
+async def deleteClientType(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
+    return await adminDeleteRecord({"table": "client_type", "id": data.get("id")}, conn)
+
+
+@app.put("/update-pay-term")
+async def updatePayTerm(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
+    return await adminUpdateRecord({**data, "table": "pay_term"}, conn)
+
+
+@app.post("/delete-pay-term")
+async def deletePayTerm(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
+    return await adminDeleteRecord({"table": "pay_term", "id": data.get("id")}, conn)
+
+
+@app.put("/update-project-status")
+async def updateProjectStatus(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
+    return await adminUpdateRecord({**data, "table": "status", "category": "project"}, conn)
+
+
+@app.post("/delete-project-status")
+async def deleteProjectStatus(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
+    return await adminDeleteRecord({"table": "status", "id": data.get("id")}, conn)
+
+
+@app.put("/update-quote-status")
+async def updateQuoteStatus(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
+    return await adminUpdateRecord({**data, "table": "status", "category": "quote"}, conn)
+
+
+@app.post("/delete-quote-status")
+async def deleteQuoteStatus(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
+    return await adminDeleteRecord({"table": "status", "id": data.get("id")}, conn)
+
+
+@app.put("/update-invoice-status")
+async def updateInvoiceStatus(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
+    return await adminUpdateRecord({**data, "table": "status", "category": "invoice"}, conn)
+
+
+@app.post("/delete-invoice-status")
+async def deleteInvoiceStatus(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
+    return await adminDeleteRecord({"table": "status", "id": data.get("id")}, conn)
+
+
+@app.put("/update-client-status")
+async def updateClientStatus(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
+    return await adminUpdateRecord({**data, "table": "status", "category": "client"}, conn)
+
+
+@app.post("/delete-client-status")
+async def deleteClientStatus(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
+    return await adminDeleteRecord({"table": "status", "id": data.get("id")}, conn)
+
+
 @app.put("/update-account-manager-client-relation")
 async def updateAccountManagerClientRelation(
     data: dict = Depends(decryptPayload()),

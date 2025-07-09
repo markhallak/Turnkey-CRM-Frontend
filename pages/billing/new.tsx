@@ -80,7 +80,26 @@ export default function Invoice() {
   const invoiceTotal = subtotal - discount + tax;
   const due = invoiceTotal - parseFloat(amountPaid || "0");
 
+  const validateFields = () => {
+    const container = document.getElementById("invoice-container");
+    if (!container) return false;
+    let valid = true;
+    container.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea").forEach((el) => {
+      const handler = () => {
+        if (el.value.trim()) el.classList.remove("border-red-500");
+      };
+      el.removeEventListener("input", handler);
+      el.addEventListener("input", handler);
+      if (!el.value.trim()) {
+        el.classList.add("border-red-500");
+        valid = false;
+      }
+    });
+    return valid;
+  };
+
   const generatePdf = async () => {
+    if (!validateFields()) return;
     if (typeof window === "undefined") return;
     const html2pdf = (await import("html2pdf.js")).default;
     const el = document.getElementById("invoice-container");
@@ -445,7 +464,7 @@ export default function Invoice() {
             Randomize Layout
           </Button>
           <Button variant="outline" onClick={generatePdf}>
-            Generate PDF
+            Download PDF
           </Button>
         </div>
       </div>

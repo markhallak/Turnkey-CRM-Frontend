@@ -83,7 +83,26 @@ export default function Quote() {
   const quoteTotal = subtotal - discount + tax;
   const due = quoteTotal - parseFloat(amountPaid || "0");
 
+  const validateFields = () => {
+    const container = document.getElementById("quote-container");
+    if (!container) return false;
+    let valid = true;
+    container.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea").forEach((el) => {
+      const handler = () => {
+        if (el.value.trim()) el.classList.remove("border-red-500");
+      };
+      el.removeEventListener("input", handler);
+      el.addEventListener("input", handler);
+      if (!el.value.trim()) {
+        el.classList.add("border-red-500");
+        valid = false;
+      }
+    });
+    return valid;
+  };
+
   const generatePdf = async () => {
+    if (!validateFields()) return;
     if (typeof window === "undefined") return;
     const html2pdf = (await import("html2pdf.js")).default;
     const el = document.getElementById("quote-container");
@@ -436,7 +455,7 @@ export default function Quote() {
             Randomize Layout
           </Button>
           <Button variant="outline" onClick={generatePdf}>
-            Generate PDF
+            Download PDF
           </Button>
         </div>
       </div>
