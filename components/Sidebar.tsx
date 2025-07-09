@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import { useState } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -56,8 +55,7 @@ const items = [
   },
 ];
 
-export default function AppSidebar() {
-  const [email, setEmail] = useState<string>("");
+export default function AppSidebar({ email }: { email: string }) {
 
 
   return (

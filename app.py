@@ -214,7 +214,7 @@ async def syncCasbinRelations(conn: Connection, enforcer: AsyncEnforcer, watcher
     if watcher:
         watcher.update()
     amRows = await conn.fetch(
-        "SELECT account_manager_email, client_id FROM account_manager_client WHERE is_deleted=FALSE"
+        "SELECT account_manager_email, client_id FROM account_manager_client"
     )
     for r in amRows:
         await save_role_mapping(
@@ -224,7 +224,7 @@ async def syncCasbinRelations(conn: Connection, enforcer: AsyncEnforcer, watcher
         )
 
     caRows = await conn.fetch(
-        "SELECT client_admin_email, technician_email FROM client_admin_technician WHERE is_deleted=FALSE"
+        "SELECT client_admin_email, technician_email FROM client_admin_technician"
     )
     for r in caRows:
         await save_role_mapping(
@@ -1759,6 +1759,21 @@ async def getClientTypes(conn: Connection = Depends(get_conn)):
     return {"client_types": [dict(r) for r in rows]}
 
 
+@app.post("/get-pay-terms")
+async def getPayTerms(conn: Connection = Depends(get_conn)):
+    sql = """
+            SELECT id, value
+              FROM pay_term
+             ORDER BY value;
+        """
+
+    try:
+        rows = await conn.fetch(sql)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return {"pay_terms": [dict(r) for r in rows]}
+
+
 @app.post("/get-client-statuses")
 async def getClientStatuses(conn: Connection = Depends(get_conn)):
     sql = """
@@ -2936,6 +2951,8 @@ TABLE_FIELDS = {
     "project_type": ["value"],
     "project_trade": ["value"],
     "state": ["name"],
+    "client_type": ["value"],
+    "pay_term": ["value"],
     "status": ["category", "value", "color"],
 }
 

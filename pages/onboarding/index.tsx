@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { useRouter } from "next/router";
+import { encryptPost, decryptPost } from "@/lib/apiClient";
 
 interface PricingRow {
   label: string;
@@ -25,7 +26,7 @@ interface PricingRow {
   isCustom: boolean;
 }
 
-function ClientReferencesSection() {
+const ClientReferencesSection = forwardRef(function ClientReferencesSection(_, ref) {
   const [refs, setRefs] = useState(
     Array.from({ length: 3 }, () => ({
       company: "",
@@ -34,6 +35,8 @@ function ClientReferencesSection() {
       phone: "",
     }))
   );
+
+  useImperativeHandle(ref, () => ({ get: () => refs }));
 
   const updateField =
     (index: number, field: "company" | "contact" | "email" | "phone") =>
@@ -93,9 +96,9 @@ function ClientReferencesSection() {
       </div>
     </div>
   );
-}
+});
 
-function PricingStructureSection() {
+const PricingStructureSection = forwardRef(function PricingStructureSection(_, ref) {
   const [rows, setRows] = useState<PricingRow[]>([
     { label: "Trip Charge", regular: "", after: "", isCustom: false },
     { label: "Material Markup", regular: "", after: "", isCustom: false },
@@ -135,6 +138,8 @@ function PricingStructureSection() {
       setRows(newRows);
     }
   }, [rows]);
+
+  useImperativeHandle(ref, () => ({ get: () => rows.filter(r => r.label || r.regular || r.after) }));
 
   return (
     <div className="overflow-x-auto rounded-lg">
@@ -201,7 +206,7 @@ function PricingStructureSection() {
       </Table>
     </div>
   );
-}
+});
 
 function GeneralInfoSection() {
   return (
@@ -395,7 +400,7 @@ const trades = [
   "Renovations",
 ];
 
-export function TradeInfoSection() {
+export const TradeInfoSection = forwardRef(function TradeInfoSection(_, ref) {
   const [coverage, setCoverage] = useState<
     Record<string, { not: boolean; light: boolean; full: boolean }>
   >(
@@ -415,6 +420,14 @@ export function TradeInfoSection() {
       },
     }));
   }
+
+  useImperativeHandle(ref, () => ({
+    get: () =>
+      Object.entries(coverage).map(([trade, vals]) => ({
+        trade,
+        coverageLevel: vals.full ? 'FULL' : vals.light ? 'LIGHT' : 'NOT',
+      })),
+  }));
 
   return (
     <div className="overflow-x-auto rounded-lg">
@@ -464,11 +477,16 @@ export function TradeInfoSection() {
       </Table>
     </div>
   );
-}
+});
 
 export default function OnboardingPage() {
   const [step, setStep] = useState(0);
   const router = useRouter();
+  const pricingRef = useRef<any>(null);
+  const refsRef = useRef<any>(null);
+  const tradeRef = useRef<any>(null);
+
+  const clientId = router.query.client_id as string | undefined;
 
   const sections = [
     {
@@ -499,22 +517,109 @@ export default function OnboardingPage() {
       title: "Trade Information",
       description:
         "Please indicate your service trade coverage levels, so we can understand your core competencies.",
-      element: <TradeInfoSection />,
+        element: <TradeInfoSection ref={tradeRef} />,
     },
     {
       title: "Pricing Structure",
       description:
         "Please outline your regular and after-hours pricing for key services so we can align on cost structures.",
-      element: <PricingStructureSection />,
+        element: <PricingStructureSection ref={pricingRef} />,
     },
     {
       title: "Client References",
       description: "Please provide 3 trusted references in the table below.",
-      element: <ClientReferencesSection />,
+        element: <ClientReferencesSection ref={refsRef} />,
     },
   ];
 
   const progress = ((step + 1) / sections.length) * 100;
+
+  function validate(idx: number) {
+    const ids: Record<number, string[]> = {
+      0: [
+        'companyName',
+        'streetAddress',
+        'organizationType',
+        'establishmentYear',
+        'annualRevenue',
+        'paymentMethods',
+        'naicsCode',
+        'dunsNumber',
+      ],
+      1: [
+        'coverageArea',
+        'adminStaffCount',
+        'fieldStaffCount',
+        'licenses',
+        'workingHours',
+        'coversAfterHours',
+        'coversWeekendCalls',
+      ],
+      2: [
+        'dispatchSupervisor',
+        'fieldSupervisor',
+        'managementSupervisor',
+        'regularContact',
+        'emergencyContact',
+      ],
+      3: ['averageMonthlyTickets', 'poSourceSplit', 'monthlyPOCapacity'],
+    };
+    const list = ids[idx] || [];
+    for (const id of list) {
+      const el = document.getElementById(id) as HTMLInputElement | null;
+      if (!el || !el.value.trim()) return false;
+    }
+    return true;
+  }
+
+  async function save() {
+    if (!clientId) {
+      router.push('/dashboard');
+      return;
+    }
+    const payload = {
+      clientId,
+      general: {
+        satelliteOfficeAddress: (document.getElementById('satelliteOffice') as HTMLInputElement)?.value,
+        organizationType: (document.getElementById('organizationType') as HTMLInputElement)?.value,
+        establishmentYear: (document.getElementById('establishmentYear') as HTMLInputElement)?.value,
+        annualRevenue: (document.getElementById('annualRevenue') as HTMLInputElement)?.value,
+        paymentMethods: (document.getElementById('paymentMethods') as HTMLInputElement)?.value,
+        naicsCode: (document.getElementById('naicsCode') as HTMLInputElement)?.value,
+        dunsNumber: (document.getElementById('dunsNumber') as HTMLInputElement)?.value,
+      },
+      service: {
+        coverageArea: (document.getElementById('coverageArea') as HTMLInputElement)?.value,
+        adminStaffCount: (document.getElementById('adminStaffCount') as HTMLInputElement)?.value,
+        fieldStaffCount: (document.getElementById('fieldStaffCount') as HTMLInputElement)?.value,
+        licenses: (document.getElementById('licenses') as HTMLInputElement)?.value,
+        workingHours: (document.getElementById('workingHours') as HTMLInputElement)?.value,
+        coversAfterHours: (document.getElementById('coversAfterHours') as HTMLInputElement)?.value,
+        coversWeekendCalls: (document.getElementById('coversWeekendCalls') as HTMLInputElement)?.value,
+      },
+      contact: {
+        dispatchSupervisor: (document.getElementById('dispatchSupervisor') as HTMLInputElement)?.value,
+        fieldSupervisor: (document.getElementById('fieldSupervisor') as HTMLInputElement)?.value,
+        managementSupervisor: (document.getElementById('managementSupervisor') as HTMLInputElement)?.value,
+        regularContact: (document.getElementById('regularContact') as HTMLInputElement)?.value,
+        emergencyContact: (document.getElementById('emergencyContact') as HTMLInputElement)?.value,
+      },
+      load: {
+        averageMonthlyTickets: (document.getElementById('averageMonthlyTickets') as HTMLInputElement)?.value,
+        poSourceSplit: (document.getElementById('poSourceSplit') as HTMLInputElement)?.value,
+        monthlyPOCapacity: (document.getElementById('monthlyPOCapacity') as HTMLInputElement)?.value,
+      },
+      tradeCoverage: tradeRef.current?.get() || [],
+      pricing: pricingRef.current?.get() || [],
+      references: refsRef.current?.get() || [],
+    };
+    try {
+      await decryptPost(await encryptPost('/save-onboarding-data', payload));
+    } catch (e) {
+      console.error(e);
+    }
+    router.push('/dashboard');
+  }
 
   return (
     <div className="h-screen flex flex-col !overflow-hidden">
@@ -574,25 +679,29 @@ export default function OnboardingPage() {
                 {sections[step].element}
               </motion.div>
             </AnimatePresence>
-            {step < sections.length - 1 ? (
-              <div className="flex justify-end py-8">
-                <Button
-                  className="bg-blue-600 hover:bg-blue-700 w-20 text-white"
-                  onClick={() => setStep((s) => s + 1)}
-                >
-                  Next
-                </Button>
-              </div>
-            ) : (
-              <div className="flex justify-end py-8">
-                <Button
-                  className="bg-blue-600 hover:bg-blue-700 w-20 text-white"
-                  onClick={() => {
-                    router.push("/dashboard");
-                  }}
-                >
-                  Finish
-                </Button>
+              {step < sections.length - 1 ? (
+                <div className="flex justify-end py-8">
+                  <Button
+                    className="bg-blue-600 hover:bg-blue-700 w-20 text-white"
+                    onClick={() => {
+                      if (!validate(step)) return;
+                      setStep((s) => s + 1);
+                    }}
+                  >
+                    Next
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex justify-end py-8">
+                  <Button
+                    className="bg-blue-600 hover:bg-blue-700 w-20 text-white"
+                    onClick={() => {
+                    if (!validate(step)) return;
+                    save();
+                    }}
+                  >
+                    Finish
+                  </Button>
               </div>
             )}
           </div>
