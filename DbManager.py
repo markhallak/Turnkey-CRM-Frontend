@@ -1040,6 +1040,76 @@ async def create_tables():
                 [(s,) for s in US_STATES],
             )
 
+        if await conn.fetchval("SELECT count(*) FROM project_priority") == 0:
+            await conn.executemany(
+                "INSERT INTO project_priority (value, color) VALUES ($1, $2);",
+                [
+                    ("P1 - Emergency", "red-500"),
+                    ("P2 - Same Day", "orange-500"),
+                    ("P3 - Standard", "yellow-500"),
+                ],
+            )
+
+        if await conn.fetchval("SELECT count(*) FROM project_type") == 0:
+            await conn.executemany(
+                "INSERT INTO project_type (value) VALUES ($1);",
+                [("Repair",), ("Installation",)],
+            )
+
+        if await conn.fetchval("SELECT count(*) FROM project_trade") == 0:
+            await conn.executemany(
+                "INSERT INTO project_trade (value) VALUES ($1);",
+                [("Electrical",), ("Plumbing",)],
+            )
+
+        if await conn.fetchval("SELECT count(*) FROM client_type") == 0:
+            await conn.executemany(
+                "INSERT INTO client_type (value) VALUES ($1);",
+                [("Retail",), ("Corporate",)],
+            )
+
+        if await conn.fetchval("SELECT count(*) FROM pay_term") == 0:
+            await conn.executemany(
+                "INSERT INTO pay_term (value) VALUES ($1);",
+                [("Net 30",), ("Net 60",)],
+            )
+
+        if await conn.fetchval("SELECT count(*) FROM status WHERE category='project'") == 0:
+            await conn.executemany(
+                "INSERT INTO status (category, value, color) VALUES ($1,$2,$3);",
+                [
+                    ("project", "Open", "green-500"),
+                    ("project", "Delayed", "yellow-500"),
+                ],
+            )
+
+        if await conn.fetchval("SELECT count(*) FROM status WHERE category='quote'") == 0:
+            await conn.executemany(
+                "INSERT INTO status (category, value, color) VALUES ($1,$2,$3);",
+                [
+                    ("quote", "Pending", "yellow-500"),
+                    ("quote", "Approved", "green-500"),
+                ],
+            )
+
+        if await conn.fetchval("SELECT count(*) FROM status WHERE category='invoice'") == 0:
+            await conn.executemany(
+                "INSERT INTO status (category, value, color) VALUES ($1,$2,$3);",
+                [
+                    ("invoice", "Sent", "blue-500"),
+                    ("invoice", "Paid", "green-500"),
+                ],
+            )
+
+        if await conn.fetchval("SELECT count(*) FROM status WHERE category='client'") == 0:
+            await conn.executemany(
+                "INSERT INTO status (category, value, color) VALUES ($1,$2,$3);",
+                [
+                    ("client", "Active", "green-500"),
+                    ("client", "Inactive", "red-500"),
+                ],
+            )
+
         # Moved outside the loop
         print("\n🎉 Schema creation complete.")
     finally:

@@ -223,7 +223,7 @@ const ProjectView = () => {
                         <PopoverTrigger asChild>
                           <Button
                             variant="outline"
-                            className="w-full font-normal text-sm mt-1.5 flex justify-between"
+                            className="w-full font-normal text-sm mt-1.5 flex justify-between bg-red-200"
                             onClick={() => handleChange("dueDate", new Date())}
                           >
                             {new Date().toLocaleDateString()}
@@ -235,6 +235,28 @@ const ProjectView = () => {
                             mode="single"
                             selected={new Date()}
                             onSelect={(d) => handleChange("dueDate", d!)}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div>
+                      <label className="text-sm">Scheduled Date</label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            className="w-full font-normal text-sm mt-1.5 flex justify-between bg-yellow-200"
+                            onClick={() => handleChange("scheduledDate", new Date())}
+                          >
+                            {new Date().toLocaleDateString()}
+                            <CalendarIcon size={16} />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent>
+                          <Calendar
+                            mode="single"
+                            selected={new Date()}
+                            onSelect={(d) => handleChange("scheduledDate", d!)}
                           />
                         </PopoverContent>
                       </Popover>
