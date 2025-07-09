@@ -373,15 +373,14 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan, dependencies=[Depends(authorize)])
 origins = [
     "http://localhost:3000",
-    # add any other domains you serve your SPA from
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  # <-- your React app origin
-    allow_credentials=True,  # <-- if you send cookies or Authorization headers
-    allow_methods=["*"],  # <-- GET, POST, PUT, DELETE, OPTIONS, etc
-    allow_headers=["*"],  # <-- allow all request headers
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
     max_age=86400,
 )
 
@@ -637,7 +636,7 @@ async def deleteAccountManagerClientRelation(
     return {"status": "deleted"}
 
 
-@app.put("/update-project-priority")
+@app.post("/update-project-priority")
 async def updateProjectPriority(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
     return await adminUpdateRecord({**data, "table": "project_priority"}, conn)
 
@@ -647,7 +646,7 @@ async def deleteProjectPriority(data: dict = Depends(decryptPayload()), conn: Co
     return await adminDeleteRecord({"table": "project_priority", "id": data.get("id")}, conn)
 
 
-@app.put("/update-project-type")
+@app.post("/update-project-type")
 async def updateProjectType(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
     return await adminUpdateRecord({**data, "table": "project_type"}, conn)
 
@@ -657,7 +656,7 @@ async def deleteProjectType(data: dict = Depends(decryptPayload()), conn: Connec
     return await adminDeleteRecord({"table": "project_type", "id": data.get("id")}, conn)
 
 
-@app.put("/update-project-trade")
+@app.post("/update-project-trade")
 async def updateProjectTrade(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
     return await adminUpdateRecord({**data, "table": "project_trade"}, conn)
 
@@ -667,7 +666,7 @@ async def deleteProjectTrade(data: dict = Depends(decryptPayload()), conn: Conne
     return await adminDeleteRecord({"table": "project_trade", "id": data.get("id")}, conn)
 
 
-@app.put("/update-state")
+@app.post("/update-state")
 async def updateState(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
     return await adminUpdateRecord({**data, "table": "state"}, conn)
 
@@ -677,7 +676,7 @@ async def deleteState(data: dict = Depends(decryptPayload()), conn: Connection =
     return await adminDeleteRecord({"table": "state", "id": data.get("id")}, conn)
 
 
-@app.put("/update-client-type")
+@app.post("/update-client-type")
 async def updateClientType(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
     return await adminUpdateRecord({**data, "table": "client_type"}, conn)
 
@@ -687,7 +686,7 @@ async def deleteClientType(data: dict = Depends(decryptPayload()), conn: Connect
     return await adminDeleteRecord({"table": "client_type", "id": data.get("id")}, conn)
 
 
-@app.put("/update-pay-term")
+@app.post("/update-pay-term")
 async def updatePayTerm(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
     return await adminUpdateRecord({**data, "table": "pay_term"}, conn)
 
@@ -697,7 +696,7 @@ async def deletePayTerm(data: dict = Depends(decryptPayload()), conn: Connection
     return await adminDeleteRecord({"table": "pay_term", "id": data.get("id")}, conn)
 
 
-@app.put("/update-project-status")
+@app.post("/update-project-status")
 async def updateProjectStatus(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
     return await adminUpdateRecord({**data, "table": "status", "category": "project"}, conn)
 
@@ -707,7 +706,7 @@ async def deleteProjectStatus(data: dict = Depends(decryptPayload()), conn: Conn
     return await adminDeleteRecord({"table": "status", "id": data.get("id")}, conn)
 
 
-@app.put("/update-quote-status")
+@app.post("/update-quote-status")
 async def updateQuoteStatus(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
     return await adminUpdateRecord({**data, "table": "status", "category": "quote"}, conn)
 
@@ -717,7 +716,7 @@ async def deleteQuoteStatus(data: dict = Depends(decryptPayload()), conn: Connec
     return await adminDeleteRecord({"table": "status", "id": data.get("id")}, conn)
 
 
-@app.put("/update-invoice-status")
+@app.post("/update-invoice-status")
 async def updateInvoiceStatus(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
     return await adminUpdateRecord({**data, "table": "status", "category": "invoice"}, conn)
 
@@ -727,7 +726,7 @@ async def deleteInvoiceStatus(data: dict = Depends(decryptPayload()), conn: Conn
     return await adminDeleteRecord({"table": "status", "id": data.get("id")}, conn)
 
 
-@app.put("/update-client-status")
+@app.post("/update-client-status")
 async def updateClientStatus(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
     return await adminUpdateRecord({**data, "table": "status", "category": "client"}, conn)
 
@@ -737,7 +736,7 @@ async def deleteClientStatus(data: dict = Depends(decryptPayload()), conn: Conne
     return await adminDeleteRecord({"table": "status", "id": data.get("id")}, conn)
 
 
-@app.put("/update-account-manager-client-relation")
+@app.post("/update-account-manager-client-relation")
 async def updateAccountManagerClientRelation(
     data: dict = Depends(decryptPayload()),
     conn: Connection = Depends(get_conn),
@@ -801,7 +800,7 @@ async def createClientAdminTechnicianRelation(
     return {"status": "created"}
 
 
-@app.put("/update-client-admin-technician-relation")
+@app.post("/update-client-admin-technician-relation")
 async def updateClientAdminTechnicianRelation(
     data: dict = Depends(decryptPayload()),
     conn: Connection = Depends(get_conn),
@@ -1160,7 +1159,14 @@ async def getProjectStatuses(
         rows = await conn.fetch(sql)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    payload = {"project_statuses": [dict(r) for r in rows]}
+    payload = {"project_statuses": [
+            {
+                "id": str(r["id"]),
+                "value": r["value"],
+                "color": r["color"]
+            }
+            for r in rows
+        ]}
     if user:
         payload = await encryptForUser(payload, user.email, conn, request.app)
     return payload
@@ -1181,7 +1187,15 @@ async def getProjectTypes(
         rows = await conn.fetch(sql)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    payload = {"project_types": [dict(r) for r in rows]}
+    payload = {
+        "project_types": [
+            {
+                "id": str(r["id"]),
+                "value": r["value"]
+            }
+            for r in rows
+        ]
+    }
     if user:
         payload = await encryptForUser(payload, user.email, conn, request.app)
     return payload
@@ -1202,7 +1216,15 @@ async def getProjectTrades(
         rows = await conn.fetch(sql)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    payload = {"project_trades": [dict(r) for r in rows]}
+    payload = {
+        "project_trades": [
+            {
+                "id": str(r["id"]),
+                "value": r["value"]
+            }
+            for r in rows
+        ]
+    }
     if user:
         payload = await encryptForUser(payload, user.email, conn, request.app)
     return payload
@@ -1223,7 +1245,16 @@ async def getProjectPriorities(
         rows = await conn.fetch(sql)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    payload = {"project_priorities": [dict(r) for r in rows]}
+    payload = {
+        "project_priorities": [
+            {
+                "id": str(r["id"]),
+                "value": r["value"],
+                "color": r["color"]
+            }
+            for r in rows
+        ]
+    }
     if user:
         payload = await encryptForUser(payload, user.email, conn, request.app)
     return payload
@@ -1249,7 +1280,14 @@ async def getAllClientAdmins(
         rows = await conn.fetch(sql)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    payload = {"client_admins": [dict(r) for r in rows]}
+    payload = {"client_admins": [
+            {
+                "id": str(r["id"]),
+                "email": r["email"],
+                "companyName": r["company_name"]
+            }
+            for r in rows
+        ]}
     if user:
         payload = await encryptForUser(payload, user.email, conn, request.app)
     return payload
@@ -1274,7 +1312,15 @@ async def getAccountManagers(
         rows = await conn.fetch(sql)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    payload = {"account_managers": [dict(r) for r in rows]}
+    payload = {"account_managers": [
+            {
+                "id": str(r["id"]),
+                "email": r["email"],
+                "firstName": r["first_name"],
+                "lastName": r["last_name"]
+            }
+            for r in rows
+        ]}
     if user:
         payload = await encryptForUser(payload, user.email, conn, request.app)
     return payload
@@ -1323,7 +1369,15 @@ async def getUsers(conn: Connection = Depends(get_conn)):
         rows = await conn.fetch(sql)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    return {"users": [dict(r) for r in rows]}
+    return {"users": [
+            {
+                "id": str(r["id"]),
+                "email": r["email"],
+                "firstName": r["first_name"],
+                "lastName": r["last_name"]
+            }
+            for r in rows
+        ]}
 
 
 @app.post("/create-new-project")
@@ -3003,7 +3057,7 @@ async def inviteUser(
     return {"status": "Link will be sent shortly"}
 
 
-@app.put("/update-user")
+@app.post("/update-user")
 async def updateUser(request: Request, data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn), enforcer: AsyncEnforcer = Depends(getEnforcer)):
     user_id = data.get("userId")
     if not user_id or not await isUUIDv4(user_id):
@@ -3111,7 +3165,7 @@ async def adminCreateEndpoint(
     return {"status": "created"}
 
 
-@app.put("/admin/update-record")
+@app.post("/admin/update-record")
 async def adminUpdateRecord(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
     table = data.get("table")
     recordId = data.get("id")
