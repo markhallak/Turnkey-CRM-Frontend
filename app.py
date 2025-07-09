@@ -1194,7 +1194,17 @@ async def getStates(
         rows = await conn.fetch(sql)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    payload = {"states": [dict(r) for r in rows]}
+
+    payload = {
+        "states": [
+            {
+                "id": str(r["id"]),
+                "name": r["name"]
+            }
+            for r in rows
+        ]
+    }
+
     if user:
         payload = await encryptForUser(payload, user.email, conn, request.app)
     return payload

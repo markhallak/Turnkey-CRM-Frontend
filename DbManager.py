@@ -793,7 +793,7 @@ BEGIN
     COALESCE((SELECT pt.value FROM project_type pt WHERE pt.id=NEW.type_id), ''),
     COALESCE((SELECT st.value FROM status st WHERE st.id=NEW.status_id AND st.category='project'), ''),
     COALESCE((SELECT tr.value FROM project_trade tr WHERE tr.id=NEW.trade_id), ''),
-    COALESCE((SELECT s.name FROM state s WHERE s.id=NEW.state_id), '')
+    COALESCE((SELECT s.name FROM state WHERE s.id=NEW.state_id), '')
   ], ' ');
   RETURN NEW;
 END;
@@ -1030,7 +1030,7 @@ async def create_tables():
                     ("p", "client_technician", "*", "/projects/view/*", "get"),
                     ("p", "client_technician", "*", "/get-messages", "*"),
 
-                    ("g", "client_technician", "client_admin", "*"),
+                    ("g", "client_technician", "client_admin", "*", "*"),
                 ]
             )
 

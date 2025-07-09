@@ -46,6 +46,8 @@ const Wrapper: FC<IProps> = ({ children, title, initialChildLoading = false }) =
       return;
     }
 
+    wrapperCache = { notifications: [], userName: "", avatarColor: "" };
+
     const fallbackColor = "#000000";
 
     setChildLoading(true);
