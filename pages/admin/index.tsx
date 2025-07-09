@@ -152,23 +152,6 @@ function GenericTable({
           >
             <Trash2 size={16} />
           </Button>
-          {config.name === "User" && (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() =>
-                handleInvite(
-                  row.original.email,
-                  row.original.user_type,
-                  row.original.first_name,
-                  row.original.last_name,
-                  row.original.assign_to
-                )
-              }
-            >
-              Invite
-            </Button>
-          )}
         </div>
       ),
     },
@@ -231,15 +214,7 @@ function GenericTable({
           });
         }
       } else {
-        if (config.name === "User") {
-          await handleInvite(
-            form.email,
-            form.user_type,
-            form.first_name,
-            form.last_name,
-            form.assign_to
-          );
-        } else if (config.name === "Employee Account Manager - Client Relations") {
+        if (config.name === "Employee Account Manager - Client Relations") {
           await encryptPost("/create-account-manager-client-relation", {
             account_manager_email: form.account_manager,
             client_id: form.client,
@@ -292,27 +267,6 @@ function GenericTable({
     setIsDeleteOpen(false);
   };
 
-  const handleInvite = async (
-    email: string,
-    accountType: string,
-    firstName?: string,
-    lastName?: string,
-    assignTo?: string
-  ) => {
-    try {
-      const res = await encryptPost("/auth/invite", {
-        emailToInvite: email,
-        accountType,
-        firstName,
-        lastName,
-        assignTo,
-      });
-      await decryptPost(res);
-      await reload();
-    } catch (err) {
-      console.error(err);
-    }
-  };
 
   const allColors = Object.entries(twColors)
     .filter(([group]) => group !== "default")
@@ -585,7 +539,7 @@ export default function AdminPage() {
     loaded.current = true;
     const load = async () => {
       try {
-        const [priorities, types, trades, statuses, states, users, relations, caRelations, qStatuses, iStatuses, adminList, clientList, cTypes, cStatuses, me] = await Promise.all([
+        const [priorities, types, trades, statuses, states, users, relations, caRelations, qStatuses, iStatuses, adminList, clientList, cTypes, cStatuses, payTerms, me] = await Promise.all([
           decryptPost(await encryptPost("/get-project-priorities", {})),
           decryptPost(await encryptPost("/get-project-types", {})),
           decryptPost(await encryptPost("/get-project-trades", {})),
@@ -600,6 +554,7 @@ export default function AdminPage() {
           decryptPost(await encryptPost("/get-clients?size=1000", {})),
           decryptPost(await encryptPost("/get-client-types", {})),
           decryptPost(await encryptPost("/get-client-statuses", {})),
+          decryptPost(await encryptPost("/get-pay-terms", {})),
           fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/auth/me`, { credentials: "include" }).then((r) => r.json()),
         ]);
         const cfgs: TableConfig[] = [
@@ -644,6 +599,20 @@ export default function AdminPage() {
             fields: [{ key: "name", header: "Text" }],
             data: states?.states || [],
             fetchUrl: "/get-states",
+          },
+          {
+            name: "Client Type",
+            table: "client_type",
+            fields: [{ key: "value", header: "Value" }],
+            data: cTypes?.client_types || [],
+            fetchUrl: "/get-client-types",
+          },
+          {
+            name: "Pay Term",
+            table: "pay_term",
+            fields: [{ key: "value", header: "Value" }],
+            data: payTerms?.pay_terms || [],
+            fetchUrl: "/get-pay-terms",
           },
           {
             name: "User",
