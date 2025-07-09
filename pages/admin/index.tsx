@@ -68,9 +68,9 @@ function GenericTable({
   clientAdmins,
   clients,
 }: {
-  config: TableConfig
-  clientAdmins: any[]
-  clients: any[]
+  config: TableConfig;
+  clientAdmins: any[];
+  clients: any[];
 }) {
   const [data, setData] = useState(() =>
     (config.data || []).map((item) => ({ ...item }))
@@ -168,6 +168,28 @@ function GenericTable({
     getPaginationRowModel: getPaginationRowModel(),
   });
 
+  const handleInvite = async (
+    email: string,
+    accountType: string,
+    firstName?: string,
+    lastName?: string,
+    assignTo?: string
+  ) => {
+    try {
+      const res = await encryptPost("/auth/invite", {
+        emailToInvite: email,
+        accountType,
+        firstName,
+        lastName,
+        assignTo,
+      });
+      await decryptPost(res);
+      await reload();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const reload = async () => {
     try {
       const r = await encryptPost(config.fetchUrl || "", {});
@@ -191,14 +213,18 @@ function GenericTable({
             lastName: form.last_name,
             role: form.user_type,
           });
-        } else if (config.name === "Employee Account Manager - Client Relations") {
+        } else if (
+          config.name === "Employee Account Manager - Client Relations"
+        ) {
           await encryptPost("/update-account-manager-client-relation", {
             old_account_manager_email: selected.account_manager,
             old_client_id: selected.client,
             account_manager_email: form.account_manager,
             client_id: form.client,
           });
-        } else if (config.name === "Client Admin - Client Technician Relations") {
+        } else if (
+          config.name === "Client Admin - Client Technician Relations"
+        ) {
           await encryptPost("/update-client-admin-technician-relation", {
             old_client_admin_email: selected.client_admin,
             old_technician_email: selected.technician,
@@ -219,11 +245,21 @@ function GenericTable({
             account_manager_email: form.account_manager,
             client_id: form.client,
           });
-        } else if (config.name === "Client Admin - Client Technician Relations") {
+        } else if (
+          config.name === "Client Admin - Client Technician Relations"
+        ) {
           await encryptPost("/create-client-admin-technician-relation", {
             client_admin_email: form.client_admin,
             technician_email: form.technician,
           });
+        } else if (config.name === "User") {
+          await handleInvite(
+            form.email,
+            form.user_type,
+            form.first_name,
+            form.last_name,
+            form.assign_to
+          );
         } else {
           await encryptPost("/admin/create-record", {
             table: config.table,
@@ -266,7 +302,6 @@ function GenericTable({
     }
     setIsDeleteOpen(false);
   };
-
 
   const allColors = Object.entries(twColors)
     .filter(([group]) => group !== "default")
@@ -539,15 +574,36 @@ export default function AdminPage() {
     loaded.current = true;
     const load = async () => {
       try {
-        const [priorities, types, trades, statuses, states, users, relations, caRelations, qStatuses, iStatuses, adminList, clientList, cTypes, cStatuses, payTerms, me] = await Promise.all([
+        const [
+          priorities,
+          types,
+          trades,
+          statuses,
+          states,
+          users,
+          relations,
+          caRelations,
+          qStatuses,
+          iStatuses,
+          adminList,
+          clientList,
+          cTypes,
+          cStatuses,
+          payTerms,
+          me,
+        ] = await Promise.all([
           decryptPost(await encryptPost("/get-project-priorities", {})),
           decryptPost(await encryptPost("/get-project-types", {})),
           decryptPost(await encryptPost("/get-project-trades", {})),
           decryptPost(await encryptPost("/get-project-statuses", {})),
           decryptPost(await encryptPost("/get-states", {})),
           decryptPost(await encryptPost("/get-users", {})),
-          decryptPost(await encryptPost("/get-account-manager-client-relations", {})),
-          decryptPost(await encryptPost("/get-client-admin-technician-relations", {})),
+          decryptPost(
+            await encryptPost("/get-account-manager-client-relations", {})
+          ),
+          decryptPost(
+            await encryptPost("/get-client-admin-technician-relations", {})
+          ),
           decryptPost(await encryptPost("/get-quote-statuses", {})),
           decryptPost(await encryptPost("/get-invoice-statuses", {})),
           decryptPost(await encryptPost("/get-all-client-admins", {})),
@@ -555,7 +611,9 @@ export default function AdminPage() {
           decryptPost(await encryptPost("/get-client-types", {})),
           decryptPost(await encryptPost("/get-client-statuses", {})),
           decryptPost(await encryptPost("/get-pay-terms", {})),
-          fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/auth/me`, { credentials: "include" }).then((r) => r.json()),
+          fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/auth/me`, {
+            credentials: "include",
+          }).then((r) => r.json()),
         ]);
         const cfgs: TableConfig[] = [
           {
@@ -619,8 +677,8 @@ export default function AdminPage() {
             table: "user",
             fields: [
               { key: "email", header: "Email" },
-              { key: "first_name", header: "First Name" },
-              { key: "last_name", header: "Last Name" },
+              { key: "firstName", header: "First Name" },
+              { key: "lastName", header: "Last Name" },
               {
                 key: "user_type",
                 header: "User Type",
@@ -639,7 +697,11 @@ export default function AdminPage() {
                 options: userTypeOptions,
               },
               { key: "client", header: "Client", isSelect: true },
-              { key: "assign_to", header: "Assign Client Admin", isSelect: true },
+              {
+                key: "assign_to",
+                header: "Assign Client Admin",
+                isSelect: true,
+              },
             ],
             data: (users?.users || []).map((u: any) => ({
               ...u,
