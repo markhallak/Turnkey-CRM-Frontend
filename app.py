@@ -3155,13 +3155,14 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
         await redis.publish("jwt_updates", f"add:{jti}")
         await conn.execute("UPDATE magic_link SET consumed=TRUE WHERE uuid=$1", UUID(link_uuid))
 
-        roles = await enforcer.get_roles_for_user(userEmail)
+        roles = await enforcer.get_roles_for_user_in_domain(userEmail, "*")
         await conn.execute(
             "UPDATE \"user\" SET is_active=TRUE, onboarding_done=$2, has_set_recovery_phrase=TRUE WHERE email=$1",
             userEmail,
             ("client_admin" in roles)
         )
 
+        print(roles)
         if "client_admin" in roles:
             next_payload = {
                 "next_step": "/onboarding",
