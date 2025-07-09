@@ -13,6 +13,8 @@ import { z } from "zod";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form } from "@/components/ui/form";
+import { encryptPost, decryptPost } from "@/lib/apiClient";
+import { useEffect, useState } from "react";
 
 const formSchema = z.object({
     companyName: z.string().min(1, "Required"),
@@ -44,6 +46,9 @@ const NewClient = () => {
     const form = useForm<FormValues>({
         resolver: zodResolver(formSchema),
     });
+    const [types, setTypes] = useState<any[]>([]);
+    const [states, setStates] = useState<any[]>([]);
+    const [payTerms, setPayTerms] = useState<any[]>([]);
     const {
         register,
         handleSubmit,
@@ -51,6 +56,25 @@ const NewClient = () => {
         setValue,
         formState: { errors },
     } = form;
+
+    useEffect(() => {
+        const load = async () => {
+            try {
+                let r = await encryptPost("/get-client-types", {});
+                const ct = await decryptPost<{ client_types: any[] }>(r);
+                setTypes(ct?.client_types || []);
+                r = await encryptPost("/get-states", {});
+                const st = await decryptPost<{ states: any[] }>(r);
+                setStates(st?.states || []);
+                r = await encryptPost("/get-pay-terms", {});
+                const pt = await decryptPost<{ pay_terms: any[] }>(r);
+                setPayTerms(pt?.pay_terms || []);
+            } catch (err) {
+                console.error(err);
+            }
+        };
+        load();
+    }, []);
 
     function onSubmit(values: FormValues) {
         console.log(values);
@@ -84,8 +108,9 @@ const NewClient = () => {
                                         <SelectValue placeholder="Select Type" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="client1">Type 1</SelectItem>
-                                        <SelectItem value="client2">Type 2</SelectItem>
+                                        {types.map((t) => (
+                                            <SelectItem key={t.id} value={t.value}>{t.value}</SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                                 {errors.type && <p className="text-red-500 text-sm">{errors.type.message}</p>}
@@ -114,8 +139,9 @@ const NewClient = () => {
                                         <SelectValue placeholder="Select State" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="state1">State 1</SelectItem>
-                                        <SelectItem value="state2">State 2</SelectItem>
+                                        {states.map((s) => (
+                                            <SelectItem key={s.id} value={s.name}>{s.name}</SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                                 {errors.state && <p className="text-red-500 text-sm">{errors.state.message}</p>}
@@ -179,8 +205,9 @@ const NewClient = () => {
                                         <SelectValue placeholder="Select Pay Term" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="Monthly">Monthly</SelectItem>
-                                        <SelectItem value="Weekly">Weekly</SelectItem>
+                                        {payTerms.map((p) => (
+                                            <SelectItem key={p.id} value={p.value}>{p.value}</SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                                 {errors.payterms && <p className="text-red-500 text-sm">{errors.payterms.message}</p>}

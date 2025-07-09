@@ -17,6 +17,7 @@ export default function App({ Component, pageProps }: AppProps) {
   const [sidebarDefaultOpen, setSidebarDefaultOpen] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [ready, setReady] = useState(false);
+  const [email, setEmail] = useState("");
   const refreshInterval = useRef<NodeJS.Timeout>();
 
   // --- Sidebar state from cookie ---
@@ -73,7 +74,12 @@ export default function App({ Component, pageProps }: AppProps) {
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/auth/me`,
           { credentials: 'include' }
         );
-        if (!me.ok) router.replace('/auth/login');
+        if (!me.ok) {
+          router.replace('/auth/login');
+          return;
+        }
+        const meData = await me.json();
+        setEmail(meData?.email || '');
         setIsAuthenticated(true);
         // 2) initial refresh to extend cookie
         await fetch(
@@ -154,7 +160,7 @@ export default function App({ Component, pageProps }: AppProps) {
             '--sidebar-width-mobile': '15rem',
           }}
         >
-          <AppSidebar />
+          <AppSidebar email={email} />
           <div className="flex-1 flex flex-col min-w-0">
             <Component {...pageProps} />
             <Toaster />
