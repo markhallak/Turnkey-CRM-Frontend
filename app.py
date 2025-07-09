@@ -599,13 +599,13 @@ async def getAccountManagerClientRelations(conn: Connection = Depends(get_conn))
 
 @app.post("/create-account-manager-client-relation")
 async def createAccountManagerClientRelation(
-    payload: dict = Body(),
+    data: dict = Depends(decryptPayload()),
     conn: Connection = Depends(get_conn),
     request: Request = None,
     enforcer: AsyncEnforcer = Depends(getEnforcer),
 ):
-    email = payload.get("account_manager_email")
-    clientId = payload.get("client_id")
+    email = data.get("account_manager_email")
+    clientId = data.get("client_id")
     if not email or not clientId:
         raise HTTPException(status_code=400, detail="Invalid data")
     sql = "INSERT INTO account_manager_client (account_manager_email, client_id) VALUES ($1,$2) ON CONFLICT DO NOTHING;"
@@ -619,13 +619,13 @@ async def createAccountManagerClientRelation(
 
 @app.post("/delete-account-manager-client-relation")
 async def deleteAccountManagerClientRelation(
-    payload: dict = Body(),
+    data: dict = Depends(decryptPayload()),
     conn: Connection = Depends(get_conn),
     request: Request = None,
     enforcer: AsyncEnforcer = Depends(getEnforcer),
 ):
-    email = payload.get("account_manager_email")
-    clientId = payload.get("client_id")
+    email = data.get("account_manager_email")
+    clientId = data.get("client_id")
     if not email or not clientId:
         raise HTTPException(status_code=400, detail="Invalid data")
     sql = "DELETE FROM account_manager_client WHERE account_manager_email=$1 AND client_id=$2;"
@@ -639,15 +639,15 @@ async def deleteAccountManagerClientRelation(
 
 @app.put("/update-account-manager-client-relation")
 async def updateAccountManagerClientRelation(
-    payload: dict = Body(),
+    data: dict = Depends(decryptPayload()),
     conn: Connection = Depends(get_conn),
     request: Request = None,
     enforcer: AsyncEnforcer = Depends(getEnforcer),
 ):
-    old_email = payload.get("old_account_manager_email")
-    old_client = payload.get("old_client_id")
-    new_email = payload.get("account_manager_email")
-    new_client = payload.get("client_id")
+    old_email = data.get("old_account_manager_email")
+    old_client = data.get("old_client_id")
+    new_email = data.get("account_manager_email")
+    new_client = data.get("client_id")
     if not old_email or not old_client or not new_email or not new_client:
         raise HTTPException(status_code=400, detail="Invalid data")
     sql = (
@@ -680,13 +680,13 @@ async def getClientAdminTechnicianRelations(conn: Connection = Depends(get_conn)
 
 @app.post("/create-client-admin-technician-relation")
 async def createClientAdminTechnicianRelation(
-    payload: dict = Body(),
+    data: dict = Depends(decryptPayload()),
     conn: Connection = Depends(get_conn),
     request: Request = None,
     enforcer: AsyncEnforcer = Depends(getEnforcer),
 ):
-    admin_email = payload.get("client_admin_email")
-    tech_email = payload.get("technician_email")
+    admin_email = data.get("client_admin_email")
+    tech_email = data.get("technician_email")
     if not admin_email or not tech_email:
         raise HTTPException(status_code=400, detail="Invalid data")
     sql = (
@@ -703,15 +703,15 @@ async def createClientAdminTechnicianRelation(
 
 @app.put("/update-client-admin-technician-relation")
 async def updateClientAdminTechnicianRelation(
-    payload: dict = Body(),
+    data: dict = Depends(decryptPayload()),
     conn: Connection = Depends(get_conn),
     request: Request = None,
     enforcer: AsyncEnforcer = Depends(getEnforcer),
 ):
-    old_admin = payload.get("old_client_admin_email")
-    old_tech = payload.get("old_technician_email")
-    admin_email = payload.get("client_admin_email")
-    tech_email = payload.get("technician_email")
+    old_admin = data.get("old_client_admin_email")
+    old_tech = data.get("old_technician_email")
+    admin_email = data.get("client_admin_email")
+    tech_email = data.get("technician_email")
     if not old_admin or not old_tech or not admin_email or not tech_email:
         raise HTTPException(status_code=400, detail="Invalid data")
     sql = (
@@ -729,13 +729,13 @@ async def updateClientAdminTechnicianRelation(
 
 @app.post("/delete-client-admin-technician-relation")
 async def deleteClientAdminTechnicianRelation(
-    payload: dict = Body(),
+    data: dict = Depends(decryptPayload()),
     conn: Connection = Depends(get_conn),
     request: Request = None,
     enforcer: AsyncEnforcer = Depends(getEnforcer),
 ):
-    admin_email = payload.get("client_admin_email")
-    tech_email = payload.get("technician_email")
+    admin_email = data.get("client_admin_email")
+    tech_email = data.get("technician_email")
     if not admin_email or not tech_email:
         raise HTTPException(status_code=400, detail="Invalid data")
     sql = (
@@ -1206,6 +1206,7 @@ async def getUsers(conn: Connection = Depends(get_conn)):
     sql = """
             SELECT id, email, first_name, last_name
               FROM "user"
+             WHERE is_deleted=FALSE
              ORDER BY first_name;
         """
     try:
@@ -2855,6 +2856,7 @@ async def inviteUser(
     accountType = data.get("accountType")
     firstName = data.get("firstName", "")
     lastName = data.get("lastName", "")
+    assignTo = data.get("assignTo")
 
     if not emailToInvite:
         raise HTTPException(status_code=400, detail="Invalid email")
@@ -2869,6 +2871,7 @@ async def inviteUser(
         firstName=firstName,
         lastName=lastName,
         accountType=accountType,
+        assignTo=assignTo,
         ttlHours=24,
     )
 
@@ -2876,15 +2879,15 @@ async def inviteUser(
 
 
 @app.put("/update-user")
-async def updateUser(request: Request, payload: dict = Body(), conn: Connection = Depends(get_conn), enforcer: AsyncEnforcer = Depends(getEnforcer)):
-    user_id = payload.get("userId")
+async def updateUser(request: Request, data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn), enforcer: AsyncEnforcer = Depends(getEnforcer)):
+    user_id = data.get("userId")
     if not user_id or not await isUUIDv4(user_id):
         raise HTTPException(status_code=400, detail="Invalid userId")
 
-    email = payload.get("email")
-    first_name = payload.get("firstName")
-    last_name = payload.get("lastName")
-    role = payload.get("role")
+    email = data.get("email")
+    first_name = data.get("firstName")
+    last_name = data.get("lastName")
+    role = data.get("role")
 
     updates = []
     params = []
@@ -2938,12 +2941,12 @@ TABLE_FIELDS = {
 
 
 @app.post("/admin/create-record")
-async def adminCreateRecord(payload: dict = Body(), conn: Connection = Depends(get_conn)):
-    table = payload.get("table")
+async def adminCreateRecord(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
+    table = data.get("table")
     fields = TABLE_FIELDS.get(table)
     if not table or not fields:
         raise HTTPException(status_code=400, detail="Invalid table")
-    values = [payload.get(f) for f in fields]
+    values = [data.get(f) for f in fields]
     placeholders = ",".join(f"${i+1}" for i in range(len(fields)))
     sql = f"INSERT INTO {table} ({', '.join(fields)}) VALUES ({placeholders}) RETURNING id;"
     try:
@@ -2955,13 +2958,13 @@ async def adminCreateRecord(payload: dict = Body(), conn: Connection = Depends(g
 
 @app.post("/admin/create-endpoint")
 async def adminCreateEndpoint(
-    payload: dict = Body(),
+    data: dict = Depends(decryptPayload()),
     request: Request = None,
     conn: Connection = Depends(get_conn),
     enforcer: AsyncEnforcer = Depends(getEnforcer),
 ):
-    role = payload.get("role")
-    obj = payload.get("obj")
+    role = data.get("role")
+    obj = data.get("obj")
     if not role or not obj or not isinstance(obj, str) or not obj.startswith("/"):
         raise HTTPException(status_code=400, detail="Invalid data")
     exists = await conn.fetchval(
@@ -2982,17 +2985,17 @@ async def adminCreateEndpoint(
 
 
 @app.put("/admin/update-record")
-async def adminUpdateRecord(payload: dict = Body(), conn: Connection = Depends(get_conn)):
-    table = payload.get("table")
-    recordId = payload.get("id")
+async def adminUpdateRecord(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
+    table = data.get("table")
+    recordId = data.get("id")
     fields = TABLE_FIELDS.get(table)
     if not table or not fields or not recordId:
         raise HTTPException(status_code=400, detail="Invalid data")
     updates = []
     params = []
     for f in fields:
-        if f in payload:
-            params.append(payload[f])
+        if f in data:
+            params.append(data[f])
             updates.append(f"{f}=${len(params)}")
     params.append(UUID(recordId))
     if not updates:
@@ -3006,9 +3009,9 @@ async def adminUpdateRecord(payload: dict = Body(), conn: Connection = Depends(g
 
 
 @app.post("/admin/delete-record")
-async def adminDeleteRecord(payload: dict = Body(), conn: Connection = Depends(get_conn)):
-    table = payload.get("table")
-    recordId = payload.get("id")
+async def adminDeleteRecord(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
+    table = data.get("table")
+    recordId = data.get("id")
     if not table or not recordId or table not in TABLE_FIELDS:
         raise HTTPException(status_code=400, detail="Invalid data")
     sql = f"UPDATE {table} SET is_deleted=TRUE, deleted_at=now() WHERE id=$1;"
@@ -3059,6 +3062,8 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
     except Exception:
         raise HTTPException(status_code=400, detail="invalid token")
 
+    assign_to = token_payload.get("assignTo")
+
     link_uuid = token_payload.get("uuid")
     if not link_uuid or not await isUUIDv4(link_uuid):
         raise HTTPException(status_code=400, detail="invalid token")
@@ -3094,6 +3099,13 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
 
             role = accountType.replace(" ", "_").lower()
             await save_role_mapping(userEmail, role)
+            if assign_to and role == "client_technician":
+                await conn.execute(
+                    "INSERT INTO client_admin_technician (client_admin_email, technician_email) VALUES ($1,$2) ON CONFLICT DO NOTHING",
+                    assign_to,
+                    userEmail,
+                )
+                await save_role_mapping(assign_to, "client_admin_technician", userEmail)
 
         digest_b64 = data.get("digest")
         salt_b64 = data.get("salt")
