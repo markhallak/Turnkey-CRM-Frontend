@@ -42,6 +42,7 @@ export default function App({ Component, pageProps }: AppProps) {
         '/projects/new',
         '/clients/new',
         '/billing/new',
+        '/quotes/new'
       ];
       if (sameTabPaths.includes(router.pathname) || sameTabPaths.includes(path)) {
         return originalPush(url, as, options);
