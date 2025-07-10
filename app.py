@@ -27,7 +27,7 @@ from sqlalchemy import Table, Column, Integer, String, MetaData
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import declarative_base
 
-from constants import ASYNCPG_URL, SECRET_KEY, REDIS_URL, KMS_URL, BYPASS_ONBOARDING_CHECKS
+from constants import ASYNCPG_URL, SECRET_KEY, REDIS_URL, KMS_URL, BYPASS_ONBOARDING_CHECKS, BYPASS_SESSION
 from util import isUUIDv4, createMagicLink, generateJwtRs256, decodeJwtRs256
 
 class SimpleUser:
@@ -82,9 +82,6 @@ async def getCurrentUser(request: Request) -> SimpleUser | None:
 
 def getEnforcer(request: Request) -> AsyncEnforcer:
     return request.app.state.enforcer
-
-
-BYPASS_SESSION = False
 
 
 async def authorize(request: Request, user: SimpleUser = Depends(getCurrentUser),
@@ -2866,8 +2863,7 @@ async def saveOnboardingData(
     pricing = payload.get("pricing", [])
     references = payload.get("references", [])
 
-    bypass = BYPASS_ONBOARDING_CHECKS or payload.get("bypassChecks")
-    if not bypass:
+    if not BYPASS_ONBOARDING_CHECKS:
         has_data = any(
             [
                 any(v for v in general.values()),
