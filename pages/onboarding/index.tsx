@@ -27,8 +27,30 @@ interface PricingRow {
   isCustom: boolean;
 }
 
-const ClientReferencesSection = forwardRef(function ClientReferencesSection(_, ref) {
+interface Reference {
+  company: string;
+  contact: string;
+  email: string;
+  phone: string;
+}
+
+interface OnboardingData {
+  general: Record<string, string>;
+  service: Record<string, string>;
+  contact: Record<string, string>;
+  load: Record<string, string>;
+  tradeCoverage: any[];
+  pricing: PricingRow[];
+  references: Reference[];
+  currentStep?: number;
+}
+
+const ClientReferencesSection = forwardRef(function ClientReferencesSection(
+  { data, onChange }: { data: Reference[]; onChange: (v: Reference[]) => void },
+  ref
+) {
   const [refs, setRefs] = useState(
+    data.length ? data :
     Array.from({ length: 3 }, () => ({
       company: "",
       contact: "",
@@ -36,6 +58,14 @@ const ClientReferencesSection = forwardRef(function ClientReferencesSection(_, r
       phone: "",
     }))
   );
+
+  useEffect(() => {
+    if (data.length) setRefs(data);
+  }, [data]);
+
+  useEffect(() => {
+    onChange(refs);
+  }, [refs, onChange]);
 
   useImperativeHandle(ref, () => ({ get: () => refs }));
 
@@ -64,6 +94,7 @@ const ClientReferencesSection = forwardRef(function ClientReferencesSection(_, r
               <TableRow key={idx}>
                 <TableCell>
                   <Input
+                    id={`ref-company-${idx}`}
                     className="focus-visible:ring-blue-600"
                     value={ref.company}
                     onChange={updateField(idx, "company")}
@@ -71,6 +102,7 @@ const ClientReferencesSection = forwardRef(function ClientReferencesSection(_, r
                 </TableCell>
                 <TableCell>
                   <Input
+                    id={`ref-contact-${idx}`}
                     className="focus-visible:ring-blue-600"
                     value={ref.contact}
                     onChange={updateField(idx, "contact")}
@@ -78,6 +110,7 @@ const ClientReferencesSection = forwardRef(function ClientReferencesSection(_, r
                 </TableCell>
                 <TableCell>
                   <Input
+                    id={`ref-email-${idx}`}
                     className="focus-visible:ring-blue-600"
                     value={ref.email}
                     onChange={updateField(idx, "email")}
@@ -85,6 +118,7 @@ const ClientReferencesSection = forwardRef(function ClientReferencesSection(_, r
                 </TableCell>
                 <TableCell>
                   <Input
+                    id={`ref-phone-${idx}`}
                     className="focus-visible:ring-blue-600"
                     value={ref.phone}
                     onChange={updateField(idx, "phone")}
@@ -99,12 +133,21 @@ const ClientReferencesSection = forwardRef(function ClientReferencesSection(_, r
   );
 });
 
-const PricingStructureSection = forwardRef(function PricingStructureSection(_, ref) {
-  const [rows, setRows] = useState<PricingRow[]>([
-    { label: "Trip Charge", regular: "", after: "", isCustom: false },
-    { label: "Material Markup", regular: "", after: "", isCustom: false },
-    { label: "", regular: "", after: "", isCustom: true },
-  ]);
+const PricingStructureSection = forwardRef(function PricingStructureSection(
+  { data, onChange }: { data: PricingRow[]; onChange: (v: PricingRow[]) => void },
+  ref
+) {
+  const [rows, setRows] = useState<PricingRow[]>(
+    data.length ? data : [
+      { label: "Trip Charge", regular: "", after: "", isCustom: false },
+      { label: "Material Markup", regular: "", after: "", isCustom: false },
+      { label: "", regular: "", after: "", isCustom: true },
+    ]
+  );
+
+  useEffect(() => {
+    if (data.length) setRows(data);
+  }, [data]);
 
   useEffect(() => {
     const fixedCount = 2;
@@ -140,6 +183,10 @@ const PricingStructureSection = forwardRef(function PricingStructureSection(_, r
     }
   }, [rows]);
 
+  useEffect(() => {
+    onChange(rows.filter((r) => r.label || r.regular || r.after));
+  }, [rows, onChange]);
+
   useImperativeHandle(ref, () => ({ get: () => rows.filter(r => r.label || r.regular || r.after) }));
 
   return (
@@ -158,6 +205,7 @@ const PricingStructureSection = forwardRef(function PricingStructureSection(_, r
               <TableCell>
                 {row.isCustom ? (
                   <Input
+                    id={`pricing-label-${idx}`}
                     className="focus-visible:ring-blue-600"
                     value={row.label}
                     onChange={(e) => {
@@ -175,6 +223,7 @@ const PricingStructureSection = forwardRef(function PricingStructureSection(_, r
               </TableCell>
               <TableCell className="text-center">
                 <Input
+                  id={`pricing-regular-${idx}`}
                   className="focus-visible:ring-blue-600"
                   value={row.regular}
                   onChange={(e) => {
@@ -189,6 +238,7 @@ const PricingStructureSection = forwardRef(function PricingStructureSection(_, r
               </TableCell>
               <TableCell className="text-center">
                 <Input
+                  id={`pricing-after-${idx}`}
                   className="focus-visible:ring-blue-600"
                   value={row.after}
                   onChange={(e) => {
@@ -209,86 +259,90 @@ const PricingStructureSection = forwardRef(function PricingStructureSection(_, r
   );
 });
 
-function GeneralInfoSection() {
+function GeneralInfoSection({ data, onChange }: { data: Record<string, string>; onChange: (k: string, v: string) => void }) {
+  const update = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => onChange(k, e.target.value);
   return (
     <div className="space-y-6">
       <div className="space-y-2">
         <Label htmlFor="companyName">Company Name (as shown in W9)</Label>
-        <Input id="companyName" className="focus-visible:ring-blue-600" />
+        <Input id="companyName" value={data.companyName || ''} onChange={update('companyName')} className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="streetAddress">Address</Label>
-        <Input id="streetAddress" className="focus-visible:ring-blue-600" />
+        <Input id="streetAddress" value={data.streetAddress || ''} onChange={update('streetAddress')} className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="satelliteOffice">
           Satellite Office Address (if applicable)
         </Label>
-        <Input id="satelliteOffice" className="focus-visible:ring-blue-600" />
+        <Input id="satelliteOffice" value={data.satelliteOffice || ''} onChange={update('satelliteOffice')} className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="organizationType">Organization Type</Label>
-        <Input id="organizationType" className="focus-visible:ring-blue-600" />
+        <Input id="organizationType" value={data.organizationType || ''} onChange={update('organizationType')} className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="establishmentYear">Year of Establishment</Label>
-        <Input id="establishmentYear" className="focus-visible:ring-blue-600" />
+        <Input id="establishmentYear" value={data.establishmentYear || ''} onChange={update('establishmentYear')} className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="annualRevenue">Annual Revenue (2023)</Label>
-        <Input id="annualRevenue" className="focus-visible:ring-blue-600" />
+        <Input id="annualRevenue" value={data.annualRevenue || ''} onChange={update('annualRevenue')} className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="paymentMethods">Accepted Payment Methods</Label>
-        <Input id="paymentMethods" className="focus-visible:ring-blue-600" />
+        <Input id="paymentMethods" value={data.paymentMethods || ''} onChange={update('paymentMethods')} className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="naicsCode">
           NAICS (North American Industry Classification Systems)
         </Label>
-        <Input id="naicsCode" className="focus-visible:ring-blue-600" />
+        <Input id="naicsCode" value={data.naicsCode || ''} onChange={update('naicsCode')} className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="dunsNumber">
           DUNS (Data Universal Numbering System)
         </Label>
-        <Input id="dunsNumber" className="focus-visible:ring-blue-600" />
+        <Input id="dunsNumber" value={data.dunsNumber || ''} onChange={update('dunsNumber')} className="focus-visible:ring-blue-600" />
       </div>
     </div>
   );
 }
 
-function ServiceInfoSection() {
+function ServiceInfoSection({ data, onChange }: { data: Record<string, string>; onChange: (k: string, v: string) => void }) {
+  const update = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => onChange(k, e.target.value);
   return (
     <div className="space-y-6">
       <div className="space-y-2">
         <Label htmlFor="coverageArea">Coverage Area (Cities)</Label>
-        <Input id="coverageArea" className="focus-visible:ring-blue-600" />
+        <Input id="coverageArea" value={data.coverageArea || ''} onChange={update('coverageArea')} className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="adminStaffCount">Number of Admin Staff</Label>
-        <Input id="adminStaffCount" className="focus-visible:ring-blue-600" />
+        <Input id="adminStaffCount" value={data.adminStaffCount || ''} onChange={update('adminStaffCount')} className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="fieldStaffCount">Number of Field Staff</Label>
-        <Input id="fieldStaffCount" className="focus-visible:ring-blue-600" />
+        <Input id="fieldStaffCount" value={data.fieldStaffCount || ''} onChange={update('fieldStaffCount')} className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="licenses">License(s)</Label>
-        <Input id="licenses" className="focus-visible:ring-blue-600" />
+        <Input id="licenses" value={data.licenses || ''} onChange={update('licenses')} className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="workingHours">Working Hours</Label>
-        <Input id="workingHours" className="focus-visible:ring-blue-600" />
+        <Input id="workingHours" value={data.workingHours || ''} onChange={update('workingHours')} className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="coversAfterHours">Do you cover afterhours?</Label>
-        <Input id="coversAfterHours" className="focus-visible:ring-blue-600" />
+        <Input id="coversAfterHours" value={data.coversAfterHours || ''} onChange={update('coversAfterHours')} className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="coversWeekendCalls">Do you cover weekend calls?</Label>
         <Input
           id="coversWeekendCalls"
+          value={data.coversWeekendCalls || ''}
+          onChange={update('coversWeekendCalls')}
           className="focus-visible:ring-blue-600"
         />
       </div>
@@ -296,7 +350,8 @@ function ServiceInfoSection() {
   );
 }
 
-function ContactInfoSection() {
+function ContactInfoSection({ data, onChange }: { data: Record<string, string>; onChange: (k: string, v: string) => void }) {
+  const update = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => onChange(k, e.target.value);
   return (
     <div className="space-y-6">
       <div className="space-y-2">
@@ -305,6 +360,8 @@ function ContactInfoSection() {
         </Label>
         <Input
           id="dispatchSupervisor"
+          value={data.dispatchSupervisor || ''}
+          onChange={update('dispatchSupervisor')}
           className="focus-visible:ring-blue-600"
         />
       </div>
@@ -313,7 +370,7 @@ function ContactInfoSection() {
           Field Supervisor (In Charge of technical aspects, onground services
           and service techs)
         </Label>
-        <Input id="fieldSupervisor" className="focus-visible:ring-blue-600" />
+        <Input id="fieldSupervisor" value={data.fieldSupervisor || ''} onChange={update('fieldSupervisor')} className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="managementSupervisor">
@@ -322,6 +379,8 @@ function ContactInfoSection() {
         </Label>
         <Input
           id="managementSupervisor"
+          value={data.managementSupervisor || ''}
+          onChange={update('managementSupervisor')}
           className="focus-visible:ring-blue-600"
         />
       </div>
@@ -329,19 +388,20 @@ function ContactInfoSection() {
         <Label htmlFor="regularContact">
           Regular Hours (Email & Phone Number)
         </Label>
-        <Input id="regularContact" className="focus-visible:ring-blue-600" />
+        <Input id="regularContact" value={data.regularContact || ''} onChange={update('regularContact')} className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="emergencyContact">
           Emergency Hours (Email & Phone Number)
         </Label>
-        <Input id="emergencyContact" className="focus-visible:ring-blue-600" />
+        <Input id="emergencyContact" value={data.emergencyContact || ''} onChange={update('emergencyContact')} className="focus-visible:ring-blue-600" />
       </div>
     </div>
   );
 }
 
-function LoadInfoSection() {
+function LoadInfoSection({ data, onChange }: { data: Record<string, string>; onChange: (k: string, v: string) => void }) {
+  const update = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => onChange(k, e.target.value);
   return (
     <div className="space-y-6">
       <div className="space-y-2">
@@ -350,6 +410,8 @@ function LoadInfoSection() {
         </Label>
         <Input
           id="averageMonthlyTickets"
+          value={data.averageMonthlyTickets || ''}
+          onChange={update('averageMonthlyTickets')}
           className="focus-visible:ring-blue-600"
         />
       </div>
@@ -358,14 +420,14 @@ function LoadInfoSection() {
           Percentage Split of PO Source (ex: 30% Residential, 50% Commercial,
           20% Industrial)
         </Label>
-        <Input id="poSourceSplit" className="focus-visible:ring-blue-600" />
+        <Input id="poSourceSplit" value={data.poSourceSplit || ''} onChange={update('poSourceSplit')} className="focus-visible:ring-blue-600" />
       </div>
       <div className="space-y-2">
         <Label htmlFor="monthlyPOCapacity">
           Current Monthly PO Capacity (Maximum capacity # of POs with current
           staff and capabilities)
         </Label>
-        <Input id="monthlyPOCapacity" className="focus-visible:ring-blue-600" />
+        <Input id="monthlyPOCapacity" value={data.monthlyPOCapacity || ''} onChange={update('monthlyPOCapacity')} className="focus-visible:ring-blue-600" />
       </div>
     </div>
   );
@@ -401,7 +463,10 @@ const trades = [
   "Renovations",
 ];
 
-export const TradeInfoSection = forwardRef(function TradeInfoSection(_, ref) {
+export const TradeInfoSection = forwardRef(function TradeInfoSection(
+  { data, onChange }: { data: any[]; onChange: (v: any[]) => void },
+  ref
+) {
   const [coverage, setCoverage] = useState<
     Record<string, { not: boolean; light: boolean; full: boolean }>
   >(
@@ -409,6 +474,27 @@ export const TradeInfoSection = forwardRef(function TradeInfoSection(_, ref) {
       trades.map((t) => [t, { not: true, light: false, full: false }])
     )
   );
+
+  useEffect(() => {
+    if (!data.length) return;
+    const obj = Object.fromEntries(
+      trades.map((t) => {
+        const found = data.find((d) => d.trade === t);
+        const level = found?.coverageLevel || 'NOT';
+        return [t, { not: level === 'NOT', light: level === 'LIGHT', full: level === 'FULL' }];
+      })
+    );
+    setCoverage(obj);
+  }, [data]);
+
+  useEffect(() => {
+    onChange(
+      Object.entries(coverage).map(([trade, vals]) => ({
+        trade,
+        coverageLevel: vals.full ? 'FULL' : vals.light ? 'LIGHT' : 'NOT',
+      }))
+    );
+  }, [coverage, onChange]);
 
   function toggle(trade: string, key: keyof Coverage) {
     setCoverage((prev) => ({
@@ -481,6 +567,17 @@ export const TradeInfoSection = forwardRef(function TradeInfoSection(_, ref) {
 });
 
 export default function OnboardingPage() {
+  const defaultData: OnboardingData = {
+    general: {},
+    service: {},
+    contact: {},
+    load: {},
+    tradeCoverage: [],
+    pricing: [],
+    references: [],
+    currentStep: 0,
+  };
+  const [formData, setFormData] = useState<OnboardingData>(defaultData);
   const [step, setStep] = useState(0);
   const router = useRouter();
   const { toast } = useToast();
@@ -490,47 +587,113 @@ export default function OnboardingPage() {
 
   const clientId = router.query.client_id as string | undefined;
 
+  useEffect(() => {
+    const match = document.cookie
+      .split('; ')
+      .find((row) => row.startsWith('onboarding_data='));
+    if (match) {
+      try {
+        const saved = JSON.parse(decodeURIComponent(match.split('=')[1]));
+        setFormData({ ...defaultData, ...saved });
+        setStep(saved.currentStep || 0);
+      } catch {
+        setFormData(defaultData);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const data = { ...formData, currentStep: step };
+    document.cookie = `onboarding_data=${encodeURIComponent(JSON.stringify(data))}; path=/; max-age=${60 * 60 * 24}`;
+  }, [formData, step]);
+
   const sections = [
     {
       title: "General Information",
       description:
         "First, we need to know a little bit more about your organization.",
-      element: <GeneralInfoSection />,
+      element: (
+        <GeneralInfoSection
+          data={formData.general}
+          onChange={(k, v) =>
+            setFormData((p) => ({ ...p, general: { ...p.general, [k]: v } }))
+          }
+        />
+      ),
     },
     {
       title: "Service Information",
       description:
         "Now, let us understand the services you provide and how they operate within your organization.",
-      element: <ServiceInfoSection />,
+      element: (
+        <ServiceInfoSection
+          data={formData.service}
+          onChange={(k, v) =>
+            setFormData((p) => ({ ...p, service: { ...p.service, [k]: v } }))
+          }
+        />
+      ),
     },
     {
       title: "Contact Information",
       description:
         "Please provide your primary contact details so we can reach out with updates and support.",
-      element: <ContactInfoSection />,
+      element: (
+        <ContactInfoSection
+          data={formData.contact}
+          onChange={(k, v) =>
+            setFormData((p) => ({ ...p, contact: { ...p.contact, [k]: v } }))
+          }
+        />
+      ),
     },
     {
       title: "Load Information",
       description:
         "Please share your key workload and capacity metrics, so we can tailor our support.",
-      element: <LoadInfoSection />,
+      element: (
+        <LoadInfoSection
+          data={formData.load}
+          onChange={(k, v) =>
+            setFormData((p) => ({ ...p, load: { ...p.load, [k]: v } }))
+          }
+        />
+      ),
     },
     {
       title: "Trade Information",
       description:
         "Please indicate your service trade coverage levels, so we can understand your core competencies.",
-        element: <TradeInfoSection ref={tradeRef} />,
+        element: (
+          <TradeInfoSection
+            ref={tradeRef}
+            data={formData.tradeCoverage}
+            onChange={(v) => setFormData((p) => ({ ...p, tradeCoverage: v }))}
+          />
+        ),
     },
     {
       title: "Pricing Structure",
       description:
         "Please outline your regular and after-hours pricing for key services so we can align on cost structures.",
-        element: <PricingStructureSection ref={pricingRef} />,
+        element: (
+          <PricingStructureSection
+            ref={pricingRef}
+            data={formData.pricing}
+            onChange={(v) => setFormData((p) => ({ ...p, pricing: v }))}
+          />
+        ),
     },
     {
       title: "Client References",
       description: "Please provide 3 trusted references in the table below.",
-        element: <ClientReferencesSection ref={refsRef} />,
+        element: (
+          <ClientReferencesSection
+            ref={refsRef}
+            data={formData.references}
+            onChange={(v) => setFormData((p) => ({ ...p, references: v }))}
+          />
+        ),
     },
   ];
 
@@ -579,6 +742,36 @@ export default function OnboardingPage() {
         el.classList.remove('border-red-500');
       }
     }
+    if (idx === 5) {
+      const rows = pricingRef.current?.get() || [];
+      rows.forEach((r: PricingRow, i: number) => {
+        ['label', 'regular', 'after'].forEach((f) => {
+          const el = document.getElementById(`pricing-${f}-${i}`) as HTMLInputElement | null;
+          if (!el) return;
+          if (!r[f as keyof PricingRow]?.trim()) {
+            el.classList.add('border-red-500');
+            ok = false;
+          } else {
+            el.classList.remove('border-red-500');
+          }
+        });
+      });
+    }
+    if (idx === 6) {
+      const refs = refsRef.current?.get() || [];
+      refs.forEach((r: Reference, i: number) => {
+        ['company', 'contact', 'email', 'phone'].forEach((f) => {
+          const el = document.getElementById(`ref-${f}-${i}`) as HTMLInputElement | null;
+          if (!el) return;
+          if (!(r as any)[f]?.trim()) {
+            el.classList.add('border-red-500');
+            ok = false;
+          } else {
+            el.classList.remove('border-red-500');
+          }
+        });
+      });
+    }
     if (!ok) {
       toast({ description: "Make sure all required fields aren't empty", variant: 'destructive' });
     }
@@ -592,43 +785,18 @@ export default function OnboardingPage() {
     }
     const payload = {
       clientId,
-      general: {
-        satelliteOfficeAddress: (document.getElementById('satelliteOffice') as HTMLInputElement)?.value,
-        organizationType: (document.getElementById('organizationType') as HTMLInputElement)?.value,
-        establishmentYear: (document.getElementById('establishmentYear') as HTMLInputElement)?.value,
-        annualRevenue: (document.getElementById('annualRevenue') as HTMLInputElement)?.value,
-        paymentMethods: (document.getElementById('paymentMethods') as HTMLInputElement)?.value,
-        naicsCode: (document.getElementById('naicsCode') as HTMLInputElement)?.value,
-        dunsNumber: (document.getElementById('dunsNumber') as HTMLInputElement)?.value,
-      },
-      service: {
-        coverageArea: (document.getElementById('coverageArea') as HTMLInputElement)?.value,
-        adminStaffCount: (document.getElementById('adminStaffCount') as HTMLInputElement)?.value,
-        fieldStaffCount: (document.getElementById('fieldStaffCount') as HTMLInputElement)?.value,
-        licenses: (document.getElementById('licenses') as HTMLInputElement)?.value,
-        workingHours: (document.getElementById('workingHours') as HTMLInputElement)?.value,
-        coversAfterHours: (document.getElementById('coversAfterHours') as HTMLInputElement)?.value,
-        coversWeekendCalls: (document.getElementById('coversWeekendCalls') as HTMLInputElement)?.value,
-      },
-      contact: {
-        dispatchSupervisor: (document.getElementById('dispatchSupervisor') as HTMLInputElement)?.value,
-        fieldSupervisor: (document.getElementById('fieldSupervisor') as HTMLInputElement)?.value,
-        managementSupervisor: (document.getElementById('managementSupervisor') as HTMLInputElement)?.value,
-        regularContact: (document.getElementById('regularContact') as HTMLInputElement)?.value,
-        emergencyContact: (document.getElementById('emergencyContact') as HTMLInputElement)?.value,
-      },
-      load: {
-        averageMonthlyTickets: (document.getElementById('averageMonthlyTickets') as HTMLInputElement)?.value,
-        poSourceSplit: (document.getElementById('poSourceSplit') as HTMLInputElement)?.value,
-        monthlyPOCapacity: (document.getElementById('monthlyPOCapacity') as HTMLInputElement)?.value,
-      },
-      tradeCoverage: tradeRef.current?.get() || [],
-      pricing: pricingRef.current?.get() || [],
-      references: refsRef.current?.get() || [],
+      general: formData.general,
+      service: formData.service,
+      contact: formData.contact,
+      load: formData.load,
+      tradeCoverage: formData.tradeCoverage,
+      pricing: formData.pricing,
+      references: formData.references,
       bypassChecks: process.env.NEXT_PUBLIC_BYPASS_ONBOARDING_CHECKS === 'true',
     };
     try {
       await decryptPost(await encryptPost('/save-onboarding-data', payload));
+      document.cookie = 'onboarding_data=; path=/; max-age=0';
     } catch (e) {
       console.error(e);
     }
@@ -693,31 +861,38 @@ export default function OnboardingPage() {
                 {sections[step].element}
               </motion.div>
             </AnimatePresence>
+            <div className="flex justify-between py-8">
+              {step > 0 && (
+                <Button
+                  className="w-20"
+                  variant="outline"
+                  onClick={() => setStep((s) => s - 1)}
+                >
+                  Back
+                </Button>
+              )}
               {step < sections.length - 1 ? (
-                <div className="flex justify-end py-8">
-                  <Button
-                    className="bg-blue-600 hover:bg-blue-700 w-20 text-white"
-                    onClick={() => {
-                      if (!validate(step)) return;
-                      setStep((s) => s + 1);
-                    }}
-                  >
-                    Next
-                  </Button>
-                </div>
+                <Button
+                  className="bg-blue-600 hover:bg-blue-700 w-20 text-white"
+                  onClick={() => {
+                    if (!validate(step)) return;
+                    setStep((s) => s + 1);
+                  }}
+                >
+                  Next
+                </Button>
               ) : (
-                <div className="flex justify-end py-8">
-                  <Button
-                    className="bg-blue-600 hover:bg-blue-700 w-20 text-white"
-                    onClick={() => {
+                <Button
+                  className="bg-blue-600 hover:bg-blue-700 w-20 text-white"
+                  onClick={() => {
                     if (!validate(step)) return;
                     save();
-                    }}
-                  >
-                    Finish
-                  </Button>
-              </div>
-            )}
+                  }}
+                >
+                  Finish
+                </Button>
+              )}
+            </div>
           </div>
         </ScrollArea>
       </main>
