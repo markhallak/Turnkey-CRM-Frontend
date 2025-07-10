@@ -871,6 +871,7 @@ export default function OnboardingPage() {
                   Back
                 </Button>
               )}
+          <div></div>
               {step < sections.length - 1 ? (
                 <Button
                   className="bg-blue-600 hover:bg-blue-700 w-20 text-white"
