@@ -1,7 +1,14 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  forwardRef,
+  useImperativeHandle,
+  useCallback,
+} from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
@@ -607,18 +614,41 @@ export default function OnboardingPage() {
     document.cookie = `onboarding_data=${encodeURIComponent(JSON.stringify(data))}; path=/; max-age=${60 * 60 * 24}`;
   }, [formData, step]);
 
+  const handleGeneralChange = useCallback((k: string, v: string) => {
+    setFormData((p) => ({ ...p, general: { ...p.general, [k]: v } }));
+  }, []);
+
+  const handleServiceChange = useCallback((k: string, v: string) => {
+    setFormData((p) => ({ ...p, service: { ...p.service, [k]: v } }));
+  }, []);
+
+  const handleContactChange = useCallback((k: string, v: string) => {
+    setFormData((p) => ({ ...p, contact: { ...p.contact, [k]: v } }));
+  }, []);
+
+  const handleLoadChange = useCallback((k: string, v: string) => {
+    setFormData((p) => ({ ...p, load: { ...p.load, [k]: v } }));
+  }, []);
+
+  const handleTradeChange = useCallback((v: any[]) => {
+    setFormData((p) => ({ ...p, tradeCoverage: v }));
+  }, []);
+
+  const handlePricingChange = useCallback((v: PricingRow[]) => {
+    setFormData((p) => ({ ...p, pricing: v }));
+  }, []);
+
+  const handleReferencesChange = useCallback((v: Reference[]) => {
+    setFormData((p) => ({ ...p, references: v }));
+  }, []);
+
   const sections = [
     {
       title: "General Information",
       description:
         "First, we need to know a little bit more about your organization.",
       element: (
-        <GeneralInfoSection
-          data={formData.general}
-          onChange={(k, v) =>
-            setFormData((p) => ({ ...p, general: { ...p.general, [k]: v } }))
-          }
-        />
+        <GeneralInfoSection data={formData.general} onChange={handleGeneralChange} />
       ),
     },
     {
@@ -626,12 +656,7 @@ export default function OnboardingPage() {
       description:
         "Now, let us understand the services you provide and how they operate within your organization.",
       element: (
-        <ServiceInfoSection
-          data={formData.service}
-          onChange={(k, v) =>
-            setFormData((p) => ({ ...p, service: { ...p.service, [k]: v } }))
-          }
-        />
+        <ServiceInfoSection data={formData.service} onChange={handleServiceChange} />
       ),
     },
     {
@@ -639,12 +664,7 @@ export default function OnboardingPage() {
       description:
         "Please provide your primary contact details so we can reach out with updates and support.",
       element: (
-        <ContactInfoSection
-          data={formData.contact}
-          onChange={(k, v) =>
-            setFormData((p) => ({ ...p, contact: { ...p.contact, [k]: v } }))
-          }
-        />
+        <ContactInfoSection data={formData.contact} onChange={handleContactChange} />
       ),
     },
     {
@@ -652,12 +672,7 @@ export default function OnboardingPage() {
       description:
         "Please share your key workload and capacity metrics, so we can tailor our support.",
       element: (
-        <LoadInfoSection
-          data={formData.load}
-          onChange={(k, v) =>
-            setFormData((p) => ({ ...p, load: { ...p.load, [k]: v } }))
-          }
-        />
+        <LoadInfoSection data={formData.load} onChange={handleLoadChange} />
       ),
     },
     {
@@ -665,11 +680,7 @@ export default function OnboardingPage() {
       description:
         "Please indicate your service trade coverage levels, so we can understand your core competencies.",
         element: (
-          <TradeInfoSection
-            ref={tradeRef}
-            data={formData.tradeCoverage}
-            onChange={(v) => setFormData((p) => ({ ...p, tradeCoverage: v }))}
-          />
+          <TradeInfoSection ref={tradeRef} data={formData.tradeCoverage} onChange={handleTradeChange} />
         ),
     },
     {
@@ -677,22 +688,14 @@ export default function OnboardingPage() {
       description:
         "Please outline your regular and after-hours pricing for key services so we can align on cost structures.",
         element: (
-          <PricingStructureSection
-            ref={pricingRef}
-            data={formData.pricing}
-            onChange={(v) => setFormData((p) => ({ ...p, pricing: v }))}
-          />
+          <PricingStructureSection ref={pricingRef} data={formData.pricing} onChange={handlePricingChange} />
         ),
     },
     {
       title: "Client References",
       description: "Please provide 3 trusted references in the table below.",
         element: (
-          <ClientReferencesSection
-            ref={refsRef}
-            data={formData.references}
-            onChange={(v) => setFormData((p) => ({ ...p, references: v }))}
-          />
+          <ClientReferencesSection ref={refsRef} data={formData.references} onChange={handleReferencesChange} />
         ),
     },
   ];
