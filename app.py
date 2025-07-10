@@ -14,21 +14,21 @@ import jwt
 import nacl.bindings
 import uvicorn
 from asyncpg import create_pool, Pool, Connection
-from casbin import AsyncEnforcer, AsyncEnforcer
+from casbin import AsyncEnforcer
 from casbin_async_sqlalchemy_adapter import Adapter
 from casbin_redis_watcher import new_watcher, WatcherOptions
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from databases import Database
 from fastapi import FastAPI, HTTPException, Query, Body, Request, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from redis.asyncio import Redis
-from sqlalchemy import Table, Column, Integer, String, MetaData
+from sqlalchemy import Column, Integer, String
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import declarative_base
 
 from constants import ASYNCPG_URL, SECRET_KEY, REDIS_URL, KMS_URL, BYPASS_ONBOARDING_CHECKS, BYPASS_SESSION
 from util import isUUIDv4, createMagicLink, generateJwtRs256, decodeJwtRs256
+
 
 class SimpleUser:
     def __init__(self, id: UUID, email: str, first_name: str, last_name: str, setup_done: bool, onboarding_done: bool, is_client: bool):
@@ -2847,14 +2847,7 @@ async def saveOnboardingData(
         conn: Connection = Depends(get_conn),
         user: SimpleUser = Depends(getCurrentUser)
 ):
-    clientId = payload.get("clientId")
-
-    if not clientId or not isUUIDv4(clientId):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid UUIDv4 (must be lowercase-hyphenated): {clientId}"
-        )
-
+    email = payload.get("email")
     general = payload.get("general", {})
     service = payload.get("service", {})
     contact = payload.get("contact", {})
@@ -3352,7 +3345,7 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
         await conn.execute(
             "UPDATE \"user\" SET is_active=TRUE, onboarding_done=$2, has_set_recovery_phrase=TRUE WHERE email=$1",
             userEmail,
-            ("client_admin" in roles)
+            not ("client_admin" in roles)
         )
 
         print(roles)

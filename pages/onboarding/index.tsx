@@ -56,23 +56,26 @@ const ClientReferencesSection = forwardRef(function ClientReferencesSection(
   { data, onChange }: { data: Reference[]; onChange: (v: Reference[]) => void },
   ref
 ) {
-  const [refs, setRefs] = useState(
-    data.length ? data :
-    Array.from({ length: 3 }, () => ({
+  const [refs, setRefs] = useState<Reference[]>(() => {
+  if (data.length) return data;
+    return Array.from({ length: 3 }, () => ({
       company: "",
       contact: "",
       email: "",
       phone: "",
     }))
-  );
+});
+
+const hasMounted = useRef(false);
+
 
   useEffect(() => {
-    if (data.length) setRefs(data);
-  }, [data]);
-
-  useEffect(() => {
+      if (!hasMounted.current) {
+    hasMounted.current = true;
+    return;
+  }
     onChange(refs);
-  }, [refs, onChange]);
+  }, [refs]);
 
   useImperativeHandle(ref, () => ({ get: () => refs }));
 
@@ -144,17 +147,15 @@ const PricingStructureSection = forwardRef(function PricingStructureSection(
   { data, onChange }: { data: PricingRow[]; onChange: (v: PricingRow[]) => void },
   ref
 ) {
-  const [rows, setRows] = useState<PricingRow[]>(
-    data.length ? data : [
-      { label: "Trip Charge", regular: "", after: "", isCustom: false },
-      { label: "Material Markup", regular: "", after: "", isCustom: false },
-      { label: "", regular: "", after: "", isCustom: true },
-    ]
-  );
+  const [rows, setRows] = useState<PricingRow[]>(() => {
+  if (data.length) return data;
+  return [
+    { label: "Trip Charge", regular: "", after: "", isCustom: false },
+    { label: "Material Markup", regular: "", after: "", isCustom: false },
+    { label: "", regular: "", after: "", isCustom: true },
+  ];
+});
 
-  useEffect(() => {
-    if (data.length) setRows(data);
-  }, [data]);
 
   useEffect(() => {
     const fixedCount = 2;
@@ -190,9 +191,16 @@ const PricingStructureSection = forwardRef(function PricingStructureSection(
     }
   }, [rows]);
 
+  const hasMounted = useRef(false);
+
+  // 3. replace your existing onChange effect
   useEffect(() => {
+    if (!hasMounted.current) {
+      hasMounted.current = true;
+      return;
+    }
     onChange(rows.filter((r) => r.label || r.regular || r.after));
-  }, [rows, onChange]);
+  }, [rows]);
 
   useImperativeHandle(ref, () => ({ get: () => rows.filter(r => r.label || r.regular || r.after) }));
 
@@ -474,34 +482,44 @@ export const TradeInfoSection = forwardRef(function TradeInfoSection(
   { data, onChange }: { data: any[]; onChange: (v: any[]) => void },
   ref
 ) {
-  const [coverage, setCoverage] = useState<
-    Record<string, { not: boolean; light: boolean; full: boolean }>
-  >(
-    Object.fromEntries(
-      trades.map((t) => [t, { not: true, light: false, full: false }])
-    )
-  );
-
-  useEffect(() => {
-    if (!data.length) return;
-    const obj = Object.fromEntries(
+  const [coverage, setCoverage] = useState<Record<string, {not:boolean;light:boolean;full:boolean}>>(() => {
+  if (data.length) {
+    return Object.fromEntries(
       trades.map((t) => {
         const found = data.find((d) => d.trade === t);
         const level = found?.coverageLevel || 'NOT';
-        return [t, { not: level === 'NOT', light: level === 'LIGHT', full: level === 'FULL' }];
+        return [
+          t,
+          {
+            not: level === 'NOT',
+            light: level === 'LIGHT',
+            full: level === 'FULL',
+          },
+        ];
       })
     );
-    setCoverage(obj);
-  }, [data]);
+  }
+  return Object.fromEntries(
+    trades.map((t) => [t, { not: true, light: false, full: false }])
+  );
+});
+
+
+    const hasMounted = useRef(false);
 
   useEffect(() => {
+      if (!hasMounted.current) {
+    hasMounted.current = true;
+    return;
+  }
+
     onChange(
       Object.entries(coverage).map(([trade, vals]) => ({
         trade,
         coverageLevel: vals.full ? 'FULL' : vals.light ? 'LIGHT' : 'NOT',
       }))
     );
-  }, [coverage, onChange]);
+  }, [coverage]);
 
   function toggle(trade: string, key: keyof Coverage) {
     setCoverage((prev) => ({
@@ -591,8 +609,6 @@ export default function OnboardingPage() {
   const pricingRef = useRef<any>(null);
   const refsRef = useRef<any>(null);
   const tradeRef = useRef<any>(null);
-
-  const clientId = router.query.client_id as string | undefined;
 
   useEffect(() => {
     const match = document.cookie
@@ -782,20 +798,29 @@ export default function OnboardingPage() {
   }
 
   async function save() {
-    if (!clientId) {
-      router.push('/dashboard');
-      return;
-    }
+
+      const me = await fetch(
+          `${process.env.NEXT_PUBLIC_BACKEND_URL}/auth/me`,
+          { credentials: 'include' }
+        );
+        if (!me.ok) {
+            toast({ description: "Make sure you are signed in, redirecting you shortly...", variant: 'destructive' });
+            setTimeout(() => {
+          router.replace('/auth/login');
+  }, 4000);
+          return;
+        }
+        const meData = await me.json();
+
     const payload = {
-      clientId,
+      email: meData?.email || '',
       general: formData.general,
       service: formData.service,
       contact: formData.contact,
       load: formData.load,
       tradeCoverage: formData.tradeCoverage,
       pricing: formData.pricing,
-      references: formData.references,
-      bypassChecks: process.env.NEXT_PUBLIC_BYPASS_ONBOARDING_CHECKS === 'true',
+      references: formData.references
     };
     try {
       await decryptPost(await encryptPost('/save-onboarding-data', payload));
