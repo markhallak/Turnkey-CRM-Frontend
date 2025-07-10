@@ -31,7 +31,8 @@ from util import isUUIDv4, createMagicLink, generateJwtRs256, decodeJwtRs256
 
 
 class SimpleUser:
-    def __init__(self, id: UUID, email: str, first_name: str, last_name: str, setup_done: bool, onboarding_done: bool, is_client: bool):
+    def __init__(self, id: UUID, email: str, first_name: str, last_name: str, setup_done: bool, onboarding_done: bool,
+                 is_client: bool):
         self.id = id
         self.email = email
         self.firstName = first_name
@@ -41,7 +42,16 @@ class SimpleUser:
         self.is_client = is_client
 
 
-async def getCurrentUser(request: Request) -> SimpleUser | None:
+def get_db_pool(request: Request) -> Pool:
+    return request.app.state.db_pool
+
+
+async def get_conn(db_pool: Pool = Depends(get_db_pool)):
+    async with db_pool.acquire() as conn:
+        yield conn
+
+
+async def getCurrentUser(request: Request, conn: Connection = Depends(get_conn), ) -> SimpleUser | None:
     token = request.cookies.get("session")
 
     if not token:
@@ -62,21 +72,20 @@ async def getCurrentUser(request: Request) -> SimpleUser | None:
     if await redis.sismember("blacklisted_users", email):
         return None
 
-    async with request.app.state.db_pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT id, first_name, last_name, has_set_recovery_phrase, onboarding_done, is_client FROM \"user\" WHERE email=$1",
+    row = await conn.fetchrow(
+        "SELECT id, first_name, last_name, has_set_recovery_phrase, onboarding_done, is_client FROM \"user\" WHERE email=$1",
+        email,
+    )
+    if row:
+        return SimpleUser(
+            row["id"],
             email,
+            row["first_name"],
+            row["last_name"],
+            row["has_set_recovery_phrase"],
+            row["onboarding_done"],
+            row["is_client"],
         )
-        if row:
-            return SimpleUser(
-                row["id"],
-                email,
-                row["first_name"],
-                row["last_name"],
-                row["has_set_recovery_phrase"],
-                row["onboarding_done"],
-                row["is_client"],
-            )
     return None
 
 
@@ -133,7 +142,7 @@ async def authorize(request: Request, user: SimpleUser = Depends(getCurrentUser)
     return True
 
 
-def decryptPayload(includePublic: bool = False):
+def decryptPayload():
     async def _dep(payload: dict = Body(), request: Request = None):
         if "clientPubKey" not in payload:
             return payload
@@ -382,31 +391,22 @@ app.add_middleware(
 )
 
 
-def get_db_pool(request: Request) -> Pool:
-    return request.app.state.db_pool
-
-
-async def get_conn(db_pool: Pool = Depends(get_db_pool)):
-    async with db_pool.acquire() as conn:
-        yield conn
-
-
-async def save_role_mapping(sub: str, role: str, dom: str = "*", delete: bool = False):
-    async with app.state.db_pool.acquire() as conn:
-        if delete:
-            await conn.execute(
-                "DELETE FROM casbin_rule WHERE ptype='g' AND v0=$1 AND v1=$2 AND v2=$3",
-                sub,
-                role,
-                dom,
-            )
-        else:
-            await conn.execute(
-                "INSERT INTO casbin_rule (ptype, v0, v1, v2) VALUES ('g',$1,$2,$3) ON CONFLICT DO NOTHING",
-                sub,
-                role,
-                dom,
-            )
+async def save_role_mapping(sub: str, role: str, dom: str = "*", delete: bool = False,
+                            conn: Connection = Depends(get_conn),):
+    if delete:
+        await conn.execute(
+            "DELETE FROM casbin_rule WHERE ptype='g' AND v0=$1 AND v1=$2 AND v2=$3",
+            sub,
+            role,
+            dom,
+        )
+    else:
+        await conn.execute(
+            "INSERT INTO casbin_rule (ptype, v0, v1, v2) VALUES ('g',$1,$2,$3) ON CONFLICT DO NOTHING",
+            sub,
+            role,
+            dom,
+        )
 
     await app.state.enforcer.load_policy()
     app.state.enforcer.build_role_links()
@@ -595,41 +595,45 @@ async def getAccountManagerClientRelations(conn: Connection = Depends(get_conn))
 
 @app.post("/create-account-manager-client-relation")
 async def createAccountManagerClientRelation(
-    data: dict = Depends(decryptPayload()),
-    conn: Connection = Depends(get_conn),
-    request: Request = None,
-    enforcer: AsyncEnforcer = Depends(getEnforcer),
+        data: dict = Depends(decryptPayload()),
+        conn: Connection = Depends(get_conn)
 ):
     email = data.get("account_manager_email")
     clientId = data.get("client_id")
+
     if not email or not clientId:
         raise HTTPException(status_code=400, detail="Invalid data")
+
     sql = "INSERT INTO account_manager_client (account_manager_email, client_id) VALUES ($1,$2) ON CONFLICT DO NOTHING;"
+
     try:
         await conn.execute(sql, email, UUID(clientId))
         await save_role_mapping(email, "account_manager_client", str(UUID(clientId)))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
     return {"status": "created"}
 
 
 @app.post("/delete-account-manager-client-relation")
 async def deleteAccountManagerClientRelation(
-    data: dict = Depends(decryptPayload()),
-    conn: Connection = Depends(get_conn),
-    request: Request = None,
-    enforcer: AsyncEnforcer = Depends(getEnforcer),
+        data: dict = Depends(decryptPayload()),
+        conn: Connection = Depends(get_conn)
 ):
     email = data.get("account_manager_email")
     clientId = data.get("client_id")
+
     if not email or not clientId:
         raise HTTPException(status_code=400, detail="Invalid data")
+
     sql = "DELETE FROM account_manager_client WHERE account_manager_email=$1 AND client_id=$2;"
+
     try:
         await conn.execute(sql, email, UUID(clientId))
         await save_role_mapping(email, "account_manager_client", str(UUID(clientId)), delete=True)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
     return {"status": "deleted"}
 
 
@@ -735,27 +739,29 @@ async def deleteClientStatus(data: dict = Depends(decryptPayload()), conn: Conne
 
 @app.post("/update-account-manager-client-relation")
 async def updateAccountManagerClientRelation(
-    data: dict = Depends(decryptPayload()),
-    conn: Connection = Depends(get_conn),
-    request: Request = None,
-    enforcer: AsyncEnforcer = Depends(getEnforcer),
+        data: dict = Depends(decryptPayload()),
+        conn: Connection = Depends(get_conn)
 ):
     old_email = data.get("old_account_manager_email")
     old_client = data.get("old_client_id")
     new_email = data.get("account_manager_email")
     new_client = data.get("client_id")
+
     if not old_email or not old_client or not new_email or not new_client:
         raise HTTPException(status_code=400, detail="Invalid data")
+
     sql = (
         "UPDATE account_manager_client SET account_manager_email=$1, client_id=$2"
         " WHERE account_manager_email=$3 AND client_id=$4;"
     )
+
     try:
         await conn.execute(sql, new_email, UUID(new_client), old_email, UUID(old_client))
         await save_role_mapping(old_email, "account_manager_client", str(UUID(old_client)), delete=True)
         await save_role_mapping(new_email, "account_manager_client", str(UUID(new_client)))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
     return {"status": "updated"}
 
 
@@ -776,73 +782,79 @@ async def getClientAdminTechnicianRelations(conn: Connection = Depends(get_conn)
 
 @app.post("/create-client-admin-technician-relation")
 async def createClientAdminTechnicianRelation(
-    data: dict = Depends(decryptPayload()),
-    conn: Connection = Depends(get_conn),
-    request: Request = None,
-    enforcer: AsyncEnforcer = Depends(getEnforcer),
+        data: dict = Depends(decryptPayload()),
+        conn: Connection = Depends(get_conn)
 ):
     admin_email = data.get("client_admin_email")
     tech_email = data.get("technician_email")
+
     if not admin_email or not tech_email:
         raise HTTPException(status_code=400, detail="Invalid data")
+
     sql = (
         "INSERT INTO client_admin_technician (client_admin_email, technician_email)"
         " VALUES ($1,$2) ON CONFLICT DO NOTHING;"
     )
+
     try:
         await conn.execute(sql, admin_email, tech_email)
         await save_role_mapping(admin_email, "client_admin_technician", tech_email)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
     return {"status": "created"}
 
 
 @app.post("/update-client-admin-technician-relation")
 async def updateClientAdminTechnicianRelation(
-    data: dict = Depends(decryptPayload()),
-    conn: Connection = Depends(get_conn),
-    request: Request = None,
-    enforcer: AsyncEnforcer = Depends(getEnforcer),
+        data: dict = Depends(decryptPayload()),
+        conn: Connection = Depends(get_conn)
 ):
     old_admin = data.get("old_client_admin_email")
     old_tech = data.get("old_technician_email")
     admin_email = data.get("client_admin_email")
     tech_email = data.get("technician_email")
+
     if not old_admin or not old_tech or not admin_email or not tech_email:
         raise HTTPException(status_code=400, detail="Invalid data")
+
     sql = (
         "UPDATE client_admin_technician SET client_admin_email=$1, technician_email=$2"
         " WHERE client_admin_email=$3 AND technician_email=$4;"
     )
+
     try:
         await conn.execute(sql, admin_email, tech_email, old_admin, old_tech)
         await save_role_mapping(old_admin, "client_admin_technician", old_tech, delete=True)
         await save_role_mapping(admin_email, "client_admin_technician", tech_email)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
     return {"status": "updated"}
 
 
 @app.post("/delete-client-admin-technician-relation")
 async def deleteClientAdminTechnicianRelation(
-    data: dict = Depends(decryptPayload()),
-    conn: Connection = Depends(get_conn),
-    request: Request = None,
-    enforcer: AsyncEnforcer = Depends(getEnforcer),
+        data: dict = Depends(decryptPayload()),
+        conn: Connection = Depends(get_conn)
 ):
     admin_email = data.get("client_admin_email")
     tech_email = data.get("technician_email")
+
     if not admin_email or not tech_email:
         raise HTTPException(status_code=400, detail="Invalid data")
+
     sql = (
         "DELETE FROM client_admin_technician"
         " WHERE client_admin_email=$1 AND technician_email=$2;"
     )
+
     try:
         await conn.execute(sql, admin_email, tech_email)
         await save_role_mapping(admin_email, "client_admin_technician", tech_email, delete=True)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
     return {"status": "deleted"}
 
 
@@ -936,7 +948,6 @@ async def getNotifications(
 @app.post("/get-profile-details")
 async def getProfileDetails(
         request: Request,
-        data: dict = Depends(decryptPayload()),
         user: SimpleUser = Depends(getCurrentUser),
         conn: Connection = Depends(get_conn)
 ):
@@ -965,14 +976,15 @@ async def getProfileDetails(
     return payload
 
 
-@app.post("/project-assessments/{project_id}")
+@app.post("/project-assessments")
 async def getProjectAssessments(
         request: Request,
-        project_id: str,
-        db_pool: Pool = Depends(get_db_pool),
+        data: dict = Depends(decryptPayload()),
+        conn: Connection = Depends(get_conn),
         user: SimpleUser = Depends(getCurrentUser)
 ):
-    if not await isUUIDv4(project_id):
+    projectId = data['projectId']
+    if not await isUUIDv4(projectId):
         raise HTTPException(status_code=400, detail="Invalid project id")
 
     sql = """
@@ -985,13 +997,16 @@ async def getProjectAssessments(
     WHERE p.id          = $1
     """
 
-    async with db_pool.acquire() as conn:
-        rec = await conn.fetchrow(sql, UUID(project_id))
+    rec = await conn.fetchrow(sql, UUID(projectId))
+
     if not rec:
         raise HTTPException(status_code=404, detail="Not found")
+
     payload = dict(rec)
+
     if user:
         payload = await encryptForUser(payload, user.email, conn, request.app)
+
     return payload
 
 
@@ -1002,7 +1017,6 @@ async def getProjectAssessments(
 @app.post("/get-dashboard-metrics")
 async def getDashboardMetrics(
         request: Request,
-        data: dict = Depends(decryptPayload()),
         conn: Connection = Depends(get_conn),
         user: SimpleUser = Depends(getCurrentUser)):
     sql = "SELECT * FROM overall_aggregates;"
@@ -1157,13 +1171,13 @@ async def getProjectStatuses(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     payload = {"project_statuses": [
-            {
-                "id": str(r["id"]),
-                "value": r["value"],
-                "color": r["color"]
-            }
-            for r in rows
-        ]}
+        {
+            "id": str(r["id"]),
+            "value": r["value"],
+            "color": r["color"]
+        }
+        for r in rows
+    ]}
     if user:
         payload = await encryptForUser(payload, user.email, conn, request.app)
     return payload
@@ -1278,13 +1292,13 @@ async def getAllClientAdmins(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     payload = {"client_admins": [
-            {
-                "id": str(r["id"]),
-                "email": r["email"],
-                "companyName": r["company_name"]
-            }
-            for r in rows
-        ]}
+        {
+            "id": str(r["id"]),
+            "email": r["email"],
+            "companyName": r["company_name"]
+        }
+        for r in rows
+    ]}
     if user:
         payload = await encryptForUser(payload, user.email, conn, request.app)
     return payload
@@ -1310,14 +1324,14 @@ async def getAccountManagers(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     payload = {"account_managers": [
-            {
-                "id": str(r["id"]),
-                "email": r["email"],
-                "firstName": r["first_name"],
-                "lastName": r["last_name"]
-            }
-            for r in rows
-        ]}
+        {
+            "id": str(r["id"]),
+            "email": r["email"],
+            "firstName": r["first_name"],
+            "lastName": r["last_name"]
+        }
+        for r in rows
+    ]}
     if user:
         payload = await encryptForUser(payload, user.email, conn, request.app)
     return payload
@@ -1367,14 +1381,14 @@ async def getUsers(conn: Connection = Depends(get_conn)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     return {"users": [
-            {
-                "id": str(r["id"]),
-                "email": r["email"],
-                "firstName": r["first_name"],
-                "lastName": r["last_name"]
-            }
-            for r in rows
-        ]}
+        {
+            "id": str(r["id"]),
+            "email": r["email"],
+            "firstName": r["first_name"],
+            "lastName": r["last_name"]
+        }
+        for r in rows
+    ]}
 
 
 @app.post("/create-new-project")
@@ -3069,8 +3083,9 @@ async def inviteUser(
 
 
 @app.post("/update-user")
-async def updateUser(request: Request, data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn), enforcer: AsyncEnforcer = Depends(getEnforcer)):
+async def updateUser(data: dict = Depends(decryptPayload()), conn: Connection = Depends(get_conn)):
     user_id = data.get("userId")
+
     if not user_id or not await isUUIDv4(user_id):
         raise HTTPException(status_code=400, detail="Invalid userId")
 
@@ -3081,12 +3096,15 @@ async def updateUser(request: Request, data: dict = Depends(decryptPayload()), c
 
     updates = []
     params = []
+
     if email:
         updates.append(f"email=${len(params) + 1}")
         params.append(email)
+
     if first_name:
         updates.append(f"first_name=${len(params) + 1}")
         params.append(first_name)
+
     if last_name:
         updates.append(f"last_name=${len(params) + 1}")
         params.append(last_name)
@@ -3139,7 +3157,7 @@ async def adminCreateRecord(data: dict = Depends(decryptPayload()), conn: Connec
     if not table or not fields:
         raise HTTPException(status_code=400, detail="Invalid table")
     values = [data.get(f) for f in fields]
-    placeholders = ",".join(f"${i+1}" for i in range(len(fields)))
+    placeholders = ",".join(f"${i + 1}" for i in range(len(fields)))
     sql = f"INSERT INTO {table} ({', '.join(fields)}) VALUES ({placeholders}) RETURNING id;"
     try:
         newId = await conn.fetchval(sql, *values)
@@ -3150,10 +3168,10 @@ async def adminCreateRecord(data: dict = Depends(decryptPayload()), conn: Connec
 
 @app.post("/admin/create-endpoint")
 async def adminCreateEndpoint(
-    data: dict = Depends(decryptPayload()),
-    request: Request = None,
-    conn: Connection = Depends(get_conn),
-    enforcer: AsyncEnforcer = Depends(getEnforcer),
+        data: dict = Depends(decryptPayload()),
+        request: Request = None,
+        conn: Connection = Depends(get_conn),
+        enforcer: AsyncEnforcer = Depends(getEnforcer),
 ):
     role = data.get("role")
     obj = data.get("obj")
@@ -3243,9 +3261,8 @@ async def login(request: Request, data: dict = Depends(decryptPayload()), conn: 
 
 
 @app.post("/auth/set-recovery-phrase")
-async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayload(True)),
+async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayload()),
                             conn: Connection = Depends(get_conn), enforcer: AsyncEnforcer = Depends(getEnforcer)):
-
     token_str = data.get("token")
     if not token_str:
         raise HTTPException(status_code=400, detail="missing token")
@@ -3435,23 +3452,6 @@ async def updateClientKey(request: Request, data: dict = Depends(decryptPayload(
         clientPub,
     )
     return {"status": "ok"}
-
-
-@app.post("/auth/complete-onboarding")
-async def completeOnboarding(request: Request, payload: dict = Depends(decryptPayload()),
-                             conn: Connection = Depends(get_conn),
-                             user: SimpleUser = Depends(getCurrentUser)):
-    userId = payload.get("userId")
-    if not userId or not isUUIDv4(userId):
-        raise HTTPException(status_code=400, detail="Invalid userId")
-    await conn.execute(
-        "UPDATE \"user\" SET onboarding_done=TRUE WHERE id=$1",
-        userId,
-    )
-    resp_payload = {"status": "ok"}
-    if user:
-        resp_payload = await encryptForUser(resp_payload, user.email, conn, request.app)
-    return resp_payload
 
 
 @app.post("/auth/revoke")

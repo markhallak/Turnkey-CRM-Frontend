@@ -625,10 +625,6 @@ export default function OnboardingPage() {
     }
   }, []);
 
-  useEffect(() => {
-    const data = { ...formData, currentStep: step };
-    document.cookie = `onboarding_data=${JSON.stringify(data)}; path=/; max-age=${60 * 60 * 24}`;
-  }, [formData, step]);
 
   const handleGeneralChange = useCallback((k: string, v: string) => {
     setFormData((p) => ({ ...p, general: { ...p.general, [k]: v } }));
@@ -797,6 +793,12 @@ export default function OnboardingPage() {
     return ok;
   }
 
+  const saveCookie = () => {
+  const data = { ...formData, currentStep: step };
+  document.cookie = `onboarding_data=${encodeURIComponent(JSON.stringify(data))}; path=/; max-age=${60 * 60 * 24}`;
+};
+
+
   async function save() {
 
       const me = await fetch(
@@ -894,7 +896,10 @@ export default function OnboardingPage() {
                 <Button
                   className="w-20"
                   variant="outline"
-                  onClick={() => setStep((s) => s - 1)}
+                  onClick={() => {
+                    setStep((s) => s - 1);
+                    saveCookie();
+                  }}
                 >
                   Back
                 </Button>
@@ -906,6 +911,7 @@ export default function OnboardingPage() {
                   onClick={() => {
                     if (!validate(step)) return;
                     setStep((s) => s + 1);
+                    saveCookie();
                   }}
                 >
                   Next
