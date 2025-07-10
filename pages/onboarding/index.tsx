@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/table";
 import { useRouter } from "next/router";
 import { encryptPost, decryptPost } from "@/lib/apiClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface PricingRow {
   label: string;
@@ -482,6 +483,7 @@ export const TradeInfoSection = forwardRef(function TradeInfoSection(_, ref) {
 export default function OnboardingPage() {
   const [step, setStep] = useState(0);
   const router = useRouter();
+  const { toast } = useToast();
   const pricingRef = useRef<any>(null);
   const refsRef = useRef<any>(null);
   const tradeRef = useRef<any>(null);
@@ -535,6 +537,7 @@ export default function OnboardingPage() {
   const progress = ((step + 1) / sections.length) * 100;
 
   function validate(idx: number) {
+    if (process.env.NEXT_PUBLIC_BYPASS_ONBOARDING_CHECKS === 'true') return true;
     const ids: Record<number, string[]> = {
       0: [
         'companyName',
@@ -565,11 +568,21 @@ export default function OnboardingPage() {
       3: ['averageMonthlyTickets', 'poSourceSplit', 'monthlyPOCapacity'],
     };
     const list = ids[idx] || [];
+    let ok = true;
     for (const id of list) {
       const el = document.getElementById(id) as HTMLInputElement | null;
-      if (!el || !el.value.trim()) return false;
+      if (!el) continue;
+      if (!el.value.trim()) {
+        el.classList.add('border-red-500');
+        ok = false;
+      } else {
+        el.classList.remove('border-red-500');
+      }
     }
-    return true;
+    if (!ok) {
+      toast({ description: "Make sure all required fields aren't empty", variant: 'destructive' });
+    }
+    return ok;
   }
 
   async function save() {
@@ -612,6 +625,7 @@ export default function OnboardingPage() {
       tradeCoverage: tradeRef.current?.get() || [],
       pricing: pricingRef.current?.get() || [],
       references: refsRef.current?.get() || [],
+      bypassChecks: process.env.NEXT_PUBLIC_BYPASS_ONBOARDING_CHECKS === 'true',
     };
     try {
       await decryptPost(await encryptPost('/save-onboarding-data', payload));
