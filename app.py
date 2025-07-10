@@ -2848,6 +2848,12 @@ async def saveOnboardingData(
         user: SimpleUser = Depends(getCurrentUser)
 ):
     email = payload.get("email")
+    clientId = None
+    if email:
+        clientId = await conn.fetchval('SELECT client_id FROM "user" WHERE email=$1', email)
+    if not clientId or not await isUUIDv4(str(clientId)):
+        raise HTTPException(status_code=400, detail="invalid client")
+
     general = payload.get("general", {})
     service = payload.get("service", {})
     contact = payload.get("contact", {})
