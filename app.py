@@ -27,7 +27,7 @@ from sqlalchemy import Table, Column, Integer, String, MetaData
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.orm import declarative_base
 
-from constants import ASYNCPG_URL, SECRET_KEY, REDIS_URL, KMS_URL
+from constants import ASYNCPG_URL, SECRET_KEY, REDIS_URL, KMS_URL, BYPASS_ONBOARDING_CHECKS
 from util import isUUIDv4, createMagicLink, generateJwtRs256, decodeJwtRs256
 
 class SimpleUser:
@@ -2865,6 +2865,22 @@ async def saveOnboardingData(
     tradeCoverage = payload.get("tradeCoverage", [])
     pricing = payload.get("pricing", [])
     references = payload.get("references", [])
+
+    bypass = BYPASS_ONBOARDING_CHECKS or payload.get("bypassChecks")
+    if not bypass:
+        has_data = any(
+            [
+                any(v for v in general.values()),
+                any(v for v in service.values()),
+                any(v for v in contact.values()),
+                any(v for v in loadInfo.values()),
+                len(tradeCoverage) > 0,
+                any((p.get("label") or p.get("regular") or p.get("after")) for p in pricing),
+                any(any(r.values()) for r in references),
+            ]
+        )
+        if not has_data:
+            raise HTTPException(status_code=400, detail="empty onboarding data")
 
     async with conn.transaction():
         await conn.execute(

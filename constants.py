@@ -12,6 +12,9 @@ SECRET_KEY = "dev-secret"
 KMS_URL = os.getenv("KMS_URL", "http://localhost:9000")
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
+# If true, skip validation checks for onboarding data
+BYPASS_ONBOARDING_CHECKS = os.getenv("BYPASS_ONBOARDING_CHECKS", "false").lower() == "true"
+
 INITIAL_POLICIES = [
     ("employee_admin",          "*", "*", "*"),
     ("employee_account_manager","*", "/clients",   "*"),
