@@ -627,7 +627,7 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     const data = { ...formData, currentStep: step };
-    document.cookie = `onboarding_data=${encodeURIComponent(JSON.stringify(data))}; path=/; max-age=${60 * 60 * 24}`;
+    document.cookie = `onboarding_data=${JSON.stringify(data)}; path=/; max-age=${60 * 60 * 24}`;
   }, [formData, step]);
 
   const handleGeneralChange = useCallback((k: string, v: string) => {
