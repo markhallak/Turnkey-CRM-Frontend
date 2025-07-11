@@ -80,7 +80,7 @@ const ProjectView = () => {
     const load = async () => {
       if (id && typeof id === "string" && !project) {
         try {
-          const r = await encryptPost(`/fetch-project?project_id=${id}`, {});
+          const r = await encryptPost("/get-project", { projectId: id });
           const j = await decryptPost<{ project: any }>(r);
           if (j) {
             setProject({
@@ -593,7 +593,7 @@ const ProjectView = () => {
           </div>
           <div className="w-full lg:w-[40%] lg:border-l border-t lg:border-t-0 flex-none h-full overflow-auto">
             <div className="flex flex-col h-full min-h-0 overflow-hidden">
-              <ChatUI projectId={id as string} clientname={project?.client || ""} />
+              <ChatUI projectId={id as string} clientname={project?.client || ""} clientId={project?.client_id} />
             </div>
           </div>
         </div>

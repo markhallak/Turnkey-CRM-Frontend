@@ -14,294 +14,20 @@ type Attachment = {
 };
 
 type Message = {
+  id: string;
   text: string;
-  sender: "employee" | "client";
+  senderEmail: string;
+  senderRole: string;
   timestamp: string;
   date: Date;
+  mentions: string[];
   attachments?: Attachment[];
 };
 
-const initialMessages: Message[] = [
-  {
-    text: "Hi there! What can I assist you with today?",
-    sender: "employee",
-    timestamp: "10:00 AM",
-    date: new Date(2025, 4, 15),
-  },
-  {
-    text: "Need any help finding something?",
-    sender: "employee",
-    timestamp: "10:00 AM",
-    date: new Date(2025, 4, 15),
-  },
-  {
-    text: "Good morning! How may I be of service?",
-    sender: "employee",
-    timestamp: "10:00 AM",
-    date: new Date(2025, 4, 15),
-  },
-  {
-    text: "Hey! Got a question for me?",
-    sender: "employee",
-    timestamp: "10:00 AM",
-    date: new Date(2025, 4, 15),
-  },
-  {
-    text: "Welcome! What do you need help with?",
-    sender: "employee",
-    timestamp: "10:00 AM",
-    date: new Date(2025, 4, 15),
-  },
-  {
-    text: "What can I do for you today?",
-    sender: "employee",
-    timestamp: "10:00 AM",
-    date: new Date(2025, 4, 15),
-  },
-  {
-    text: "Hello! Do you need assistance with anything?",
-    sender: "employee",
-    timestamp: "10:00 AM",
-    date: new Date(2025, 4, 15),
-  },
-  {
-    text: "How can I support you today?",
-    sender: "employee",
-    timestamp: "10:00 AM",
-    date: new Date(2025, 4, 15),
-  },
-  {
-    text: "Hello! Looking for something in particular?",
-    sender: "employee",
-    timestamp: "10:00 AM",
-    date: new Date(2025, 4, 15),
-  },
-  {
-    text: "Hi! Feel free to ask me anything.",
-    sender: "employee",
-    timestamp: "10:00 AM",
-    date: new Date(2025, 4, 15),
-  },
-  {
-    text: "Hey there! How can I help out?",
-    sender: "employee",
-    timestamp: "10:00 AM",
-    date: new Date(2025, 4, 15),
-  },
-  {
-    text: "Hello! Need guidance or support?",
-    sender: "employee",
-    timestamp: "10:00 AM",
-    date: new Date(2025, 4, 15),
-  },
-  {
-    text: "Good to see you! What are you looking for?",
-    sender: "employee",
-    timestamp: "10:00 AM",
-    date: new Date(2025, 4, 15),
-  },
-  {
-    text: "Hey! Can I answer a question for you?",
-    sender: "employee",
-    timestamp: "10:00 AM",
-    date: new Date(2025, 4, 15),
-  },
-  {
-    text: "Hello! Want to explore some options?",
-    sender: "employee",
-    timestamp: "10:00 AM",
-    date: new Date(2025, 4, 15),
-  },
-  {
-    text: "Hi again! What would you like to know?",
-    sender: "employee",
-    timestamp: "10:00 AM",
-    date: new Date(2025, 4, 15),
-  },
-  {
-    text: "Welcome back! Ready to get started?",
-    sender: "employee",
-    timestamp: "10:00 AM",
-    date: new Date(2025, 4, 15),
-  },
-  {
-    text: "Hello! Let me know how I can help.",
-    sender: "employee",
-    timestamp: "10:00 AM",
-    date: new Date(2025, 4, 15),
-  },
-  {
-    text: "Hey! Got something on your mind?",
-    sender: "employee",
-    timestamp: "10:00 AM",
-    date: new Date(2025, 4, 15),
-  },
-  {
-    text: "Hi! I'm here if you need anything.",
-    sender: "employee",
-    timestamp: "10:00 AM",
-    date: new Date(2025, 4, 15),
-  },
-  {
-    text: "I need some information about your services.",
-    sender: "client",
-    timestamp: "10:01 AM",
-    date: new Date(2025, 4, 15),
-  },
-  {
-    text: "Here's our PDF with full details.",
-    sender: "client",
-    timestamp: "10:05 AM",
-    date: new Date(2025, 4, 15),
-    attachments: [
-      {
-        name: "Flowbite Terms & Conditions",
-        extension: "PDF",
-        size: "18 MB",
-        url: "#",
-      },
-    ],
-  },
-  {
-    text: "Sure, I'll take a look.",
-    sender: "employee",
-    timestamp: "10:06 AM",
-    date: new Date(2025, 4, 15),
-  },
-  {
-    text: "Thank you!",
-    sender: "client",
-    timestamp: "10:07 AM",
-    date: new Date(2025, 4, 16),
-  },
-  {
-    text: "Let me know if you have questions.",
-    sender: "employee",
-    timestamp: "10:08 AM",
-    date: new Date(2025, 4, 16),
-  },
-  {
-    text: "Sounds good.",
-    sender: "client",
-    timestamp: "10:09 AM",
-    date: new Date(2025, 4, 16),
-  },
-  {
-    text: "Great!",
-    sender: "employee",
-    timestamp: "10:10 AM",
-    date: new Date(2025, 4, 17),
-  },
-  {
-    text: "We can handle everything from A to Z!",
-    sender: "employee",
-    timestamp: "10:11 AM",
-    date: new Date(2025, 4, 17),
-  },
-  {
-    text: "You don't have to worry about anything at all",
-    sender: "employee",
-    timestamp: "10:12 AM",
-    date: new Date(2025, 4, 17),
-  },
-  {
-    text: "Feel free to ask.",
-    sender: "employee",
-    timestamp: "10:13 AM",
-    date: new Date(2025, 4, 17),
-  },
-  {
-    text: "One more doc for you.",
-    sender: "employee",
-    timestamp: "10:14 AM",
-    date: new Date(2025, 4, 17),
-    attachments: [
-      { name: "Project Plan", extension: "DOCX", size: "2.4 MB", url: "#" },
-    ],
-  },
-  {
-    text: "Thanks!",
-    sender: "client",
-    timestamp: "10:15 AM",
-    date: new Date(2025, 4, 17),
-  },
-  {
-    text: "You're welcome.",
-    sender: "employee",
-    timestamp: "10:16 AM",
-    date: new Date(2025, 4, 17),
-  },
-  {
-    text: "Let's proceed.",
-    sender: "client",
-    timestamp: "10:17 AM",
-    date: new Date(2025, 4, 17),
-  },
-  {
-    text: "On it.",
-    sender: "employee",
-    timestamp: "10:18 AM",
-    date: new Date(2025, 4, 17),
-  },
-  {
-    text: "All set.",
-    sender: "client",
-    timestamp: "10:21 AM",
-    date: new Date(2025, 4, 17),
-  },
-  {
-    text: "I need more info about the refund policy",
-    sender: "client",
-    timestamp: "10:21 AM",
-    date: new Date(2025, 4, 17),
-  },
-  {
-    text: "I heard some bad experiences",
-    sender: "client",
-    timestamp: "10:21 AM",
-    date: new Date(2025, 4, 17),
-  },
-  {
-    text: "Any info?",
-    sender: "client",
-    timestamp: "10:21 AM",
-    date: new Date(2025, 4, 17),
-  },
-  {
-    text: "Let me refer you to the refund team and they'll be able to assist you with that!",
-    sender: "employee",
-    timestamp: "10:21 AM",
-    date: new Date(2025, 4, 17),
-  },
-  {
-    text: "Sounds good!!",
-    sender: "client",
-    timestamp: "10:21 AM",
-    date: new Date(2025, 4, 17),
-  },
-  {
-    text: "Great chat!",
-    sender: "employee",
-    timestamp: "10:22 AM",
-    date: new Date(2025, 4, 17),
-  },
-  {
-    text: "Indeed.",
-    sender: "client",
-    timestamp: "10:23 AM",
-    date: new Date(2025, 4, 17),
-  },
-  {
-    text: "Bye!",
-    sender: "employee",
-    timestamp: "10:24 AM",
-    date: new Date(2025, 4, 17),
-  },
-];
 
-export default function ChatUI({ projectId, clientname }: { projectId: string; clientname: string }) {
+export default function ChatUI({ projectId, clientname, clientId }: { projectId: string; clientname: string; clientId?: string }) {
     const { email, isClient, role } = useAuth();
-  const [allMessages, setAllMessages] = useState<Message[]>(initialMessages);
+  const [allMessages, setAllMessages] = useState<Message[]>([]);
   const [visibleCount, setVisibleCount] = useState(20);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -309,9 +35,31 @@ export default function ChatUI({ projectId, clientname }: { projectId: string; c
   const [messageType, setMessageType] = useState<"internal" | "all">(
     isClient ? "all" : "internal"
   );
+  const [mentionOptions, setMentionOptions] = useState<any[]>([]);
+  const [showMentionDropdown, setShowMentionDropdown] = useState(false);
+  const [selectedMentions, setSelectedMentions] = useState<any[]>([]);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const loadMentions = async () => {
+    if (!showMentionDropdown) setShowMentionDropdown(true);
+    if (mentionOptions.length) return;
+    try {
+      const r = await encryptPost("/get-mention-users", { projectId, clientId });
+      const j = await decryptPost<any>(r);
+      if (j) setMentionOptions(j.users);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleMentionSelect = (u: any) => {
+    setInput((prev) => `${prev}@${u.firstName} ${u.lastName} `);
+    setSelectedMentions((m) => [...m, u]);
+    setShowMentionDropdown(false);
+    textareaRef.current?.focus();
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -320,13 +68,15 @@ export default function ChatUI({ projectId, clientname }: { projectId: string; c
         const j = await decryptPost<any>(r);
         if (j) {
           setAllMessages(
-            j.messages
-              .map((m: any) => ({
-                text: m.content,
-                sender: m.sender_type === "client" ? "client" : "employee",
-                timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true }),
-                date: new Date(m.created_at),
-              }))
+            j.messages.map((m: any) => ({
+              id: m.id,
+              text: m.content,
+              senderEmail: m.sender_email,
+              senderRole: m.sender_role,
+              timestamp: new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true }),
+              date: new Date(m.created_at),
+              mentions: m.mentions || [],
+            }))
           );
           setCursor({ ts: j.last_seen_created_at || undefined, id: j.last_seen_id || undefined });
           setVisibleCount(20);
@@ -340,7 +90,7 @@ export default function ChatUI({ projectId, clientname }: { projectId: string; c
 
   const filteredMessages =
     messageType === "employee"
-      ? allMessages.filter((m) => m.sender === "employee")
+      ? allMessages.filter((m) => m.senderRole.startsWith("employee"))
       : allMessages;
   const visibleMessages = filteredMessages.slice(-visibleCount);
 
@@ -362,10 +112,13 @@ export default function ChatUI({ projectId, clientname }: { projectId: string; c
     const size = formatSize(file.size);
     const url = URL.createObjectURL(file);
     const msg: Message = {
+      id: "",
       text: "",
-      sender: "employee",
+      senderEmail: email,
+      senderRole: role,
       timestamp: ts,
       date: now,
+      mentions: [],
       attachments: [{ name, extension, size, url }],
     };
     setAllMessages((prev) => [...prev, msg]);
@@ -418,7 +171,7 @@ export default function ChatUI({ projectId, clientname }: { projectId: string; c
     if (!input.trim()) return;
     const now = new Date();
     const ts = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true });
-    const userMsg: Message = { text: input, sender: "employee", timestamp: ts, date: now };
+    const userMsg: Message = { id: "", text: input, senderEmail: email, senderRole: role, timestamp: ts, date: now, mentions: selectedMentions.map((m) => m.email) };
     setAllMessages((prev) => [...prev, userMsg]);
     setVisibleCount((c) => c + 1);
     setInput("");
@@ -427,7 +180,15 @@ export default function ChatUI({ projectId, clientname }: { projectId: string; c
       textareaRef.current.rows = 1;
     }
     try {
-      await decryptPost(await encryptPost("/send-message", { projectId, content: input }));
+      await decryptPost(
+        await encryptPost("/send-message", {
+          projectId,
+          content: input,
+          mentions: selectedMentions.map((m) => m.email),
+        })
+      );
+      setSelectedMentions([]);
+      setShowMentionDropdown(false);
     } catch (err) {
       console.error(err);
     }
@@ -457,16 +218,17 @@ export default function ChatUI({ projectId, clientname }: { projectId: string; c
       lastSender = null;
     }
     const next = visibleMessages[i + 1];
-    const isLastOfMine =
-      m.sender === "employee" && (!next || next.sender !== "employee");
-    const isFirstOfOthers = m.sender !== "employee" && lastSender !== m.sender;
-    const isFirstOfMine = m.sender === "employee" && lastSender !== "employee";
+    const isEmployee = m.senderRole.startsWith("employee");
+    const nextIsEmployee = next ? next.senderRole.startsWith("employee") : false;
+    const isLastOfMine = isEmployee && (!next || !nextIsEmployee);
+    const isFirstOfOthers = !isEmployee && lastSender !== m.senderRole;
+    const isFirstOfMine = isEmployee && lastSender !== m.senderRole;
     groups.push({
       ...m,
-      __showTime: m.sender === "employee" ? isLastOfMine : isFirstOfOthers,
-      __showName: m.sender === "employee" ? isFirstOfMine : isFirstOfOthers,
+      __showTime: isEmployee ? isLastOfMine : isFirstOfOthers,
+      __showName: isEmployee ? isFirstOfMine : isFirstOfOthers,
     } as any);
-    lastSender = m.sender;
+    lastSender = m.senderRole;
   }
 
   return (
@@ -498,19 +260,33 @@ export default function ChatUI({ projectId, clientname }: { projectId: string; c
                 key={i}
                 text={item.text}
                 date={item.date}
-                mine={item.sender === "employee"}
-                senderName={item.sender === "employee" ? "You" : clientname}
+                mine={item.senderEmail === email}
+                senderName={item.senderEmail === email ? "You" : clientname}
                 timestamp={item.timestamp}
                 attachments={item.attachments}
                 showTime={item.__showTime}
                 showName={item.__showName}
+                color={item.senderRole.startsWith("employee") ? "green" : "blue"}
               />
             )
           )}
         </div>
       </ScrollArea>
       <div className="p-4 border-t bg-gray-50">
-        <div className="flex items-center px-2 py-1 border border-gray-300 rounded-lg bg-white w-full">
+        <div className="relative flex items-center px-2 py-1 border border-gray-300 rounded-lg bg-white w-full">
+          {showMentionDropdown && mentionOptions.length > 0 && (
+            <div className="absolute bottom-full left-0 mb-1 bg-white border rounded shadow max-h-40 overflow-auto z-50">
+              {mentionOptions.map((u) => (
+                <div
+                  key={u.email}
+                  className="px-2 py-1 hover:bg-gray-100 cursor-pointer whitespace-nowrap"
+                  onClick={() => handleMentionSelect(u)}
+                >
+                  {u.firstName} {u.lastName}
+                </div>
+              ))}
+            </div>
+          )}
           <textarea
             ref={textareaRef}
             value={input}
@@ -523,6 +299,8 @@ export default function ChatUI({ projectId, clientname }: { projectId: string; c
               e.currentTarget.style.height = `${e.currentTarget.scrollHeight}px`;
             }}
             onKeyDown={(e) => {
+              if (e.key === "@") { loadMentions(); }
+              if (e.key === "Escape") setShowMentionDropdown(false);
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 handleSend();
