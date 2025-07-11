@@ -43,6 +43,7 @@ export default function MessageBubble({
   attachments,
   showTime = true,
   showName = false,
+  color = "blue",
 }: {
   text: string;
   mine?: boolean;
@@ -52,6 +53,7 @@ export default function MessageBubble({
   attachments?: Attachment[];
   showTime?: boolean;
   showName?: boolean;
+  color?: "green" | "blue";
 }) {
   const formattedLabel = React.useMemo(() => {
     const today = new Date();
@@ -155,7 +157,7 @@ export default function MessageBubble({
             </DropdownMenu>
             <p
               className={`py-2 px-4 rounded-[20px] text-sm leading-relaxed whitespace-pre-wrap max-w-full ${
-                mine ? "bg-[#53d769] text-white" : "bg-[#147efb] text-white"
+                color === "green" ? "bg-[#53d769] text-white" : "bg-[#147efb] text-white"
               }`}
               style={{ overflowWrap: "anywhere" }}
             >
