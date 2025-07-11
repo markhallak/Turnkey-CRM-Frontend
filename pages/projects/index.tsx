@@ -28,9 +28,11 @@ import { encryptPost, decryptPost } from "@/lib/apiClient";
 import { Button } from "@/components/ui/button";
 import { TbTableExport } from "react-icons/tb";
 import * as XLSX from "xlsx";
+import { useAuth } from "@/lib/authContext";
 
 const Projects = () => {
   const [searchTerm, setSearchTerm] = useState("");
+    const { isClient } = useAuth();
   const [filters, setFilters] = useState({ priority: [] as string[], type: [] as string[], status: [] as string[] });
   const [projects, setProjects] = useState<DocumentData[]>([]);
   const [cursor, setCursor] = useState<{ ts?: string; id?: string }>({});
@@ -152,6 +154,7 @@ const Projects = () => {
           </div>
 
           <div className="flex flex-col items-end space-y-2 mt-6 lg:mt-0 w-auto ml-auto">
+            {!isClient && (
             <Button
               asChild
               variant="outline"
@@ -165,6 +168,7 @@ const Projects = () => {
                 />
               </Link>
             </Button>
+            )}
             <div className="flex flex-wrap gap-2 w-auto">
               <DropdownMenu
                 open={columnsMenuOpen}

@@ -1,6 +1,7 @@
 "use client";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import AppSidebar from "@/components/Sidebar";
+import { AuthContext } from "@/lib/authContext";
 import "@/styles/globals.css";
 import type { AppProps } from "next/app";
 import { useRouter } from "next/router";
@@ -18,6 +19,8 @@ export default function App({ Component, pageProps }: AppProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [ready, setReady] = useState(false);
   const [email, setEmail] = useState("");
+  const [role, setRole] = useState("");
+  const [isClient, setIsClient] = useState("");
   const refreshInterval = useRef<NodeJS.Timeout>();
 
   // --- Sidebar state from cookie ---
@@ -79,8 +82,11 @@ export default function App({ Component, pageProps }: AppProps) {
           return;
         }
         const meData = await me.json();
-        setEmail(meData?.email || '');
+        setEmail(meData.email);
+        setRole(meData.role);
+        setIsClient(meData.is_client);
         setIsAuthenticated(true);
+
         // 2) initial refresh to extend cookie
         await fetch(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/auth/refresh-session`,
@@ -146,6 +152,7 @@ export default function App({ Component, pageProps }: AppProps) {
   );
 
   return (
+          <AuthContext.Provider value={{ email, isAuthenticated, isClient }}>
     <ToastProvider>
       {noSidebar ? (
         <>
@@ -160,7 +167,7 @@ export default function App({ Component, pageProps }: AppProps) {
             '--sidebar-width-mobile': '15rem',
           }}
         >
-          <AppSidebar email={email} />
+          <AppSidebar />
           <div className="flex-1 flex flex-col min-w-0">
             <Component {...pageProps} />
             <Toaster />
@@ -168,5 +175,6 @@ export default function App({ Component, pageProps }: AppProps) {
         </SidebarProvider>
       )}
     </ToastProvider>
+        </AuthContext.Provider>
   );
 }

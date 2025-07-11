@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import Wrapper from "@/components/Wrapper";
+import Loading from "@/components/Loading"
 import {
   ColumnDef,
   SortingState,
@@ -567,12 +568,14 @@ export default function AdminPage() {
   const [clients, setClients] = useState<any[]>([]);
   const [configs, setConfigs] = useState<TableConfig[]>([]);
   const loaded = useRef(false);
+  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     if (loaded.current) return;
     loaded.current = true;
     const load = async () => {
       try {
+          setLoading(true);
         const [
           priorities,
           types,
@@ -610,9 +613,6 @@ export default function AdminPage() {
           decryptPost(await encryptPost("/get-client-types", {})),
           decryptPost(await encryptPost("/get-client-statuses", {})),
           decryptPost(await encryptPost("/get-pay-terms", {})),
-          fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/auth/me`, {
-            credentials: "include",
-          }).then((r) => r.json()),
         ]);
         const cfgs: TableConfig[] = [
           {
@@ -763,12 +763,15 @@ export default function AdminPage() {
           status: (cStatuses?.client_statuses || []).map((v: any) => v.value),
         });
         setEmail(me?.email || "");
+        setLoading(false);
       } catch (err) {
         console.error(err);
       }
     };
     load();
   }, []);
+
+  if (loading) return <Loading />
 
   return (
     <Wrapper title="Admin">

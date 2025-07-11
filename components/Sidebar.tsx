@@ -8,6 +8,7 @@ import {
   Wallet,
   CircleHelp,
 } from "lucide-react";
+import { useAuth } from "@/lib/authContext";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -55,8 +56,8 @@ const items = [
   },
 ];
 
-export default function AppSidebar({ email }: { email: string }) {
-
+export default function AppSidebar() {
+  const { email, isAuthenticated, isClient } = useAuth();
 
   return (
     <Sidebar>
@@ -76,7 +77,11 @@ export default function AppSidebar({ email }: { email: string }) {
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map((item) => (
+              {items.map((item) => {
+                    if(isClient && (item.title === "Dashboard" || item.title === "Billing")){
+                        return;
+                        }
+                  return (
                 <SidebarMenuItem key={item.title} className="focus:!ring-0">
                   <SidebarMenuButton asChild>
                     <Link
@@ -88,7 +93,8 @@ export default function AppSidebar({ email }: { email: string }) {
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
-              ))}
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -100,7 +106,7 @@ export default function AppSidebar({ email }: { email: string }) {
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton className="focus:!ring-0 flex items-center justify-between w-full">
 <span className="flex-1 truncate">
-      {email || "Current User"}
+      {isAuthenticated ? email : "Couldn't find email"}
     </span>
                       <ChevronUp className="ml-2 flex-shrink-0" />
                 </SidebarMenuButton>

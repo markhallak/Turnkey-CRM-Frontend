@@ -1,16 +1,18 @@
 "use client";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
+import { useAuth } from "@/lib/authContext";
 
 export default function IndexPage() {
   const router = useRouter();
+    const { isAuthenticated } = useAuth();
+
   useEffect(() => {
     const checkLogin = async () => {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL }/auth/me`, {credentials: "include",});
-        router.replace(res.ok ? "/dashboard" : "/login");
+        router.replace(isAuthenticated ? "/dashboard" : "/auth/login");
       } catch {
-        router.replace("/login");
+        router.replace("/auth/login");
       }
     };
     checkLogin();

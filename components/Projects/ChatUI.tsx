@@ -4,6 +4,7 @@ import { Paperclip, Send, User } from "lucide-react";
 import MessageBubble from "@/components/Projects/MessageBubble";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { encryptPost, decryptPost } from "@/lib/apiClient";
+import { useAuth } from "@/lib/authContext";
 
 type Attachment = {
   name: string;
@@ -299,13 +300,14 @@ const initialMessages: Message[] = [
 ];
 
 export default function ChatUI({ projectId, clientname }: { projectId: string; clientname: string }) {
+    const { email, isClient, role } = useAuth();
   const [allMessages, setAllMessages] = useState<Message[]>(initialMessages);
   const [visibleCount, setVisibleCount] = useState(20);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [cursor, setCursor] = useState<{ ts?: string; id?: string }>({});
-  const [messageType, setMessageType] = useState<"employee" | "all">(
-    "employee"
+  const [messageType, setMessageType] = useState<"internal" | "all">(
+    isClient ? "all" : "internal"
   );
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -536,16 +538,20 @@ export default function ChatUI({ projectId, clientname }: { projectId: string; c
             >
               <Paperclip size={20} className="text-gray-500" />
             </Button>
+            {!isClient && (
             <Button
               variant="ghost"
               size="icon"
               type="button"
               onClick={() =>
-                setMessageType((t) => (t === "employee" ? "all" : "employee"))
+                setMessageType((t) => {
+                    // TODO: If this is toggled on, then the messageType should be "internal", otherwise "all"
+                    })
               }
             >
-              <User size={20} className="text-gray-500" />
+              <Building2  size={20} className="text-gray-500" />
             </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"

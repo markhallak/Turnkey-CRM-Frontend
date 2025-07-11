@@ -224,6 +224,7 @@ async def syncCasbinRelations(conn: Connection, enforcer: AsyncEnforcer, watcher
     )
     for r in amRows:
         await save_role_mapping(
+            conn,
             r["account_manager_email"],
             "account_manager_client",
             str(r["client_id"]),
@@ -234,6 +235,7 @@ async def syncCasbinRelations(conn: Connection, enforcer: AsyncEnforcer, watcher
     )
     for r in caRows:
         await save_role_mapping(
+            conn,
             r["client_admin_email"],
             "client_admin_technician",
             r["technician_email"],
@@ -391,8 +393,7 @@ app.add_middleware(
 )
 
 
-async def save_role_mapping(sub: str, role: str, dom: str = "*", delete: bool = False,
-                            conn: Connection = Depends(get_conn),):
+async def save_role_mapping(conn: Connection, sub: str, role: str, dom: str = "*", delete: bool = False):
     if delete:
         await conn.execute(
             "DELETE FROM casbin_rule WHERE ptype='g' AND v0=$1 AND v1=$2 AND v2=$3",
@@ -424,12 +425,14 @@ async def getEd25519PublicKey(request: Request):
 
 
 @app.get("/auth/me")
-async def whoami(user: SimpleUser = Depends(getCurrentUser)):
+async def whoami(user: SimpleUser = Depends(getCurrentUser), enforcer: AsyncEnforcer = Depends(getEnforcer)):
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="unauthenticated",
         )
+
+    roles = await enforcer.get_roles_for_user_in_domain(user.email, "*")
 
     return {
         "email": user.email,
@@ -437,7 +440,8 @@ async def whoami(user: SimpleUser = Depends(getCurrentUser)):
         "lastName": user.lastName,
         "setup_done": user.setup_done,
         "onboarding_done": user.onboarding_done,
-        "is_client": user.is_client
+        "is_client": user.is_client,
+        "roles": roles[0]
     }
 
 
@@ -608,7 +612,7 @@ async def createAccountManagerClientRelation(
 
     try:
         await conn.execute(sql, email, UUID(clientId))
-        await save_role_mapping(email, "account_manager_client", str(UUID(clientId)))
+        await save_role_mapping(conn, email, "account_manager_client", str(UUID(clientId)))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -630,7 +634,7 @@ async def deleteAccountManagerClientRelation(
 
     try:
         await conn.execute(sql, email, UUID(clientId))
-        await save_role_mapping(email, "account_manager_client", str(UUID(clientId)), delete=True)
+        await save_role_mapping(conn, email, "account_manager_client", str(UUID(clientId)), delete=True)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -757,8 +761,8 @@ async def updateAccountManagerClientRelation(
 
     try:
         await conn.execute(sql, new_email, UUID(new_client), old_email, UUID(old_client))
-        await save_role_mapping(old_email, "account_manager_client", str(UUID(old_client)), delete=True)
-        await save_role_mapping(new_email, "account_manager_client", str(UUID(new_client)))
+        await save_role_mapping(conn, old_email, "account_manager_client", str(UUID(old_client)), delete=True)
+        await save_role_mapping(conn, new_email, "account_manager_client", str(UUID(new_client)))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -798,7 +802,7 @@ async def createClientAdminTechnicianRelation(
 
     try:
         await conn.execute(sql, admin_email, tech_email)
-        await save_role_mapping(admin_email, "client_admin_technician", tech_email)
+        await save_role_mapping(conn, admin_email, "client_admin_technician", tech_email)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -825,8 +829,8 @@ async def updateClientAdminTechnicianRelation(
 
     try:
         await conn.execute(sql, admin_email, tech_email, old_admin, old_tech)
-        await save_role_mapping(old_admin, "client_admin_technician", old_tech, delete=True)
-        await save_role_mapping(admin_email, "client_admin_technician", tech_email)
+        await save_role_mapping(conn, old_admin, "client_admin_technician", old_tech, delete=True)
+        await save_role_mapping(conn, admin_email, "client_admin_technician", tech_email)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -851,7 +855,7 @@ async def deleteClientAdminTechnicianRelation(
 
     try:
         await conn.execute(sql, admin_email, tech_email)
-        await save_role_mapping(admin_email, "client_admin_technician", tech_email, delete=True)
+        await save_role_mapping(conn, admin_email, "client_admin_technician", tech_email, delete=True)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1583,7 +1587,7 @@ async def fetchProject(
         raise HTTPException(status_code=500, detail=str(e))
 
     project = dict(row)
-    roles = await enforcer.get_roles_for_user_in_domain(user.email, "*") if user else []
+    roles = await enforcer.get_roles_for_user_in_domain(user.email, "*")
     if "client_technician" in roles:
         project.pop("nte", None)
 
@@ -3118,8 +3122,8 @@ async def updateUser(data: dict = Depends(decryptPayload()), conn: Connection = 
 
     if role:
         subj = email if email else await conn.fetchval('SELECT email FROM "user" WHERE id=$1', UUID(user_id))
-        await save_role_mapping(subj, role.replace(' ', '_').lower(), delete=True)
-        await save_role_mapping(subj, role.replace(' ', '_').lower())
+        await save_role_mapping(conn, subj, role.replace(' ', '_').lower(), delete=True)
+        await save_role_mapping(conn, subj, role.replace(' ', '_').lower())
 
     return {"status": "updated"}
 
@@ -3307,14 +3311,14 @@ async def setRecoveryPhrase(request: Request, data: dict = Depends(decryptPayloa
             )
 
             role = accountType.replace(" ", "_").lower()
-            await save_role_mapping(userEmail, role)
+            await save_role_mapping(conn, userEmail, role)
             if assign_to and role == "client_technician":
                 await conn.execute(
                     "INSERT INTO client_admin_technician (client_admin_email, technician_email) VALUES ($1,$2) ON CONFLICT DO NOTHING",
                     assign_to,
                     userEmail,
                 )
-                await save_role_mapping(assign_to, "client_admin_technician", userEmail)
+                await save_role_mapping(conn, assign_to, "client_admin_technician", userEmail)
 
         digest_b64 = data.get("digest")
         salt_b64 = data.get("salt")

@@ -1,6 +1,7 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "@/lib/authContext";
 import {
   useState,
   useEffect,
@@ -801,21 +802,10 @@ export default function OnboardingPage() {
 
   async function save() {
 
-      const me = await fetch(
-          `${process.env.NEXT_PUBLIC_BACKEND_URL}/auth/me`,
-          { credentials: 'include' }
-        );
-        if (!me.ok) {
-            toast({ description: "Make sure you are signed in, redirecting you shortly...", variant: 'destructive' });
-            setTimeout(() => {
-          router.replace('/auth/login');
-  }, 4000);
-          return;
-        }
-        const meData = await me.json();
+        const { email, isAuthenticated, isClient } = useAuth();
 
     const payload = {
-      email: meData?.email || '',
+      email: email || '',
       general: formData.general,
       service: formData.service,
       contact: formData.contact,

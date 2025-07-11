@@ -27,9 +27,11 @@ import { TbTableExport } from "react-icons/tb";
 import Table from "@/components/Clients/Table";
 import * as XLSX from "xlsx";
 import { encryptPost, decryptPost } from "@/lib/apiClient";
+import { useAuth } from "@/lib/authContext";
 
 const Clients = () => {
   const [searchTerm, setSearchTerm] = useState("");
+    const { isClient } = useAuth();
   const [filters, setFilters] = useState<{ type: string[]; status: string[] }>({
     type: [],
     status: [],
@@ -153,6 +155,7 @@ const Clients = () => {
             </div>
           </div>
           <div className="flex flex-col items-end space-y-2 mt-6 lg:mt-0 w-auto ml-auto">
+            {!isClient && (
             <Button
               asChild
               variant="outline"
@@ -166,6 +169,7 @@ const Clients = () => {
                 />
               </Link>
             </Button>
+            )}
             <div className="flex flex-wrap gap-2 w-auto">
               <DropdownMenu
                 open={columnsMenuOpen}
