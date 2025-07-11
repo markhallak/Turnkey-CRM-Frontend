@@ -109,6 +109,11 @@ export default function App({ Component, pageProps }: AppProps) {
       }
     };
     init();
+    const requiredRoles = Component.auth?.roles
+  if (requiredRoles && !requiredRoles.includes(role)) {
+    router.replace('/unauthorized')
+    return null
+  }
   }, [router.pathname]);
 
   // --- Silent token refresh loop ---
@@ -139,15 +144,18 @@ export default function App({ Component, pageProps }: AppProps) {
     return () => clearInterval(refreshInterval.current as NodeJS.Timeout);
   }, [isAuthenticated, router]);
 
+
   // --- Delay rendering until ready ---
   if (!ready) {
     return (
-      <div className="h-screen flex items-center justify-center">
+      <div>
       </div>
     );
   }
 
-  const noSidebar = ['/auth/login', '/onboarding', '/set-recovery-phrase'].includes(
+
+
+  const noSidebar = ['/auth/login', '/onboarding', '/set-recovery-phrase', '/unauthorized'].includes(
     router.pathname
   );
 
