@@ -1,4 +1,3 @@
-"use client";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import AppSidebar from "@/components/Sidebar";
 import { AuthContext } from "@/lib/authContext";
@@ -22,8 +21,14 @@ export default function App({ Component, pageProps }: AppProps) {
   const [role, setRole] = useState("");
   const [isClient, setIsClient] = useState("");
   const refreshInterval = useRef<NodeJS.Timeout>();
+const routeRoles: Array<{ pattern: RegExp; roles: string[] }> = [
+  { pattern: /^\/admin/,        roles: ['employee_admin']           },
+    { pattern: /^\/billing\/?$/,  roles: ['employee_admin', "employee_account_manager"]  },
+  { pattern: /^\/clients\/?$/,  roles: ['employee_admin', "employee_account_manager"]  },
+  { pattern: /^\/dashboard\/?$/,  roles: ['employee_admin', "employee_account_manager"]  },
+  { pattern: /^\/projects/,     roles: ['employee_admin', "employee_account_manager", "client_admin", "client_technician"] },
+]
 
-  // --- Sidebar state from cookie ---
   useEffect(() => {
     const match = document.cookie
       .split('; ')
@@ -109,11 +114,6 @@ export default function App({ Component, pageProps }: AppProps) {
       }
     };
     init();
-    const requiredRoles = Component.auth?.roles
-  if (requiredRoles && !requiredRoles.includes(role)) {
-    router.replace('/unauthorized')
-    return null
-  }
   }, [router.pathname]);
 
   // --- Silent token refresh loop ---
@@ -144,18 +144,39 @@ export default function App({ Component, pageProps }: AppProps) {
     return () => clearInterval(refreshInterval.current as NodeJS.Timeout);
   }, [isAuthenticated, router]);
 
+    useEffect(() => {
+   if (!router.isReady) return;
+ }, [router.isReady]);
 
-  // --- Delay rendering until ready ---
-  if (!ready) {
+ useEffect(() => {
+   if (!ready || !router.isReady || !role) return;
+
+   const rule = routeRoles.find(r => r.pattern.test(router.pathname));
+   console.log("RULE: ", rule)
+   if (!rule) return;  // public route
+    console.log("ROLE: ", role);
+
+   if (!rule.roles.includes(role)) {
+     router.replace("/unauthorized");
+   }
+ }, [ready, router.isReady, router.pathname, role]);
+
+
+
+  if (!ready || !router.isReady) {
     return (
-      <div>
-      </div>
+      <div/>
     );
   }
 
+  const currentRule = router.isReady
+   ? routeRoles.find(r => r.pattern.test(router.pathname))
+   : undefined;
+ if (currentRule && !currentRule.roles.includes(role)) {
+   return null;
+ }
 
-
-  const noSidebar = ['/auth/login', '/onboarding', '/set-recovery-phrase', '/unauthorized'].includes(
+  const noSidebar = ['/auth/login', '/onboarding', '/set-recovery-phrase', "/unauthorized"].includes(
     router.pathname
   );
 

@@ -550,10 +550,7 @@ function GenericTable({
   );
 }
 
-type NextPageWithAuth = NextPage & { auth?: { roles: string[] } }
-
-const AdminPage: NextPageWithAuth = () => {
-    const allowedRoles = ['employee_admin'];
+export default function AdminPage() {
   const userTypeOptions = [
     "Employee Admin",
     "Employee Account Manager",
@@ -791,9 +788,3 @@ const AdminPage: NextPageWithAuth = () => {
     </Wrapper>
   );
 }
-
-AdminPage.auth = {
-  roles: ['employee_admin'],
-}
-
-export default AdminPage
